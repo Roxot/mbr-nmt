@@ -6,8 +6,12 @@ class TestIO(unittest.TestCase):
 
     def test_read_candidates(self):
         candidates = read_candidates_file("test/data/candidates-3.txt", 3)
-        expected = [["George went to school by bike today.", "Today, George went to school by bike.",  "This is a completely unrelated sentence."],
-                    ["He got the bike for his birthday.", "He got the bike for his anniversary.",  "The birthday bike."]]
+        expected = [["George went to school by bike today .".split(" "), 
+                     "Today , George went to school by bike .".split(" "),
+                     "This is a completely unrelated sentence .".split(" ")],
+                    ["He got the bike for his birthday .".split(" "),
+                     "He got the bike for his anniversary .".split(" "),
+                     "The birthday bike .".split(" ")]]
         self.assertEqual(candidates, expected)
 
         raised_exception = False

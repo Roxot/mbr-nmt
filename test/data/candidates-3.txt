@@ -1,6 +1,6 @@
-George went to school by bike today.
-Today, George went to school by bike.
-This is a completely unrelated sentence.
-He got the bike for his birthday.
-He got the bike for his anniversary.
-The birthday bike.
+George went to school by bike today .
+Today , George went to school by bike .
+This is a completely unrelated sentence .
+He got the bike for his birthday .
+He got the bike for his anniversary .
+The birthday bike .
