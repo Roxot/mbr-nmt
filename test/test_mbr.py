@@ -65,3 +65,19 @@ class TestMBR(unittest.TestCase):
         # Test that it doesn't return a matrix by default.
         result_pred = mbr(candidates, unigram_precision, samples=samples)
         self.assertEqual(result_pred, expected_pred)
+
+        # Test with subsampling candidates.
+        candidates = ["A beautiful red bike .".split(" "),
+                      "A precious yellow bike .".split(" "),
+                      "A beautiful yellow bike .".split(" "),
+                      "A precious red bike . ".split()]
+        result_pred, result_matrix = mbr(candidates, unigram_precision, samples=None, subsample_candidates=2, return_matrix=True)
+        self.assertEqual(result_matrix.shape, (4, 2))
+
+        # Randomized test, should give different results depending on subsamples. Should pass with high probability.
+        predictions = []
+        for _ in range(100):
+            pred = mbr(candidates, unigram_precision, samples=None, subsample_candidates=2).tolist()
+            predictions += pred
+        pred_vocab = set(predictions)
+        self.assertTrue("yellow" in pred_vocab and "red" in pred_vocab)
