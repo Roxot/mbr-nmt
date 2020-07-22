@@ -6,7 +6,7 @@ class TestUtility(unittest.TestCase):
 
     def test_unigram_precision(self):
         hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today, George went to school by bike .".split(" ")
+        hyp2 = "Today , George went to school by bike .".split(" ")
         hyp3 = "This is a completely unrelated sentence .".split(" ")
         hyp4 = "a a a a a a".split(" ")
         hyps = [hyp1, hyp2, hyp3, hyp4]
