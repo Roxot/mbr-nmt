@@ -14,8 +14,10 @@ def mbr(candidates, utility, samples=None, return_matrix=False, subsample_candid
 
     # Decide on how we will obtain MC samples to estimate E[utility(candidate, .)].
     if subsample_candidates is not None:
-        if samples is not None: raise Exception("Cannot subsample candidates and use a fixed set of samples.")
-        if subsample_candidates > len(candidates): raise Warning("Subsample size is larger than the number of candidates. Are you sure this is intended?")
+        if samples is not None:
+            raise Exception("Cannot subsample candidates and use a fixed set of samples.")
+        if subsample_candidates > len(candidates):
+            raise Warning("Subsample size is larger than the number of candidates. Are you sure this is intended?")
         sample_indices = np.random.randint(0, len(candidates), size=[len(candidates), subsample_candidates])
         candidates = np.array(candidates)
         num_samples = subsample_candidates

@@ -1,6 +1,14 @@
 import subprocess
 import os
 
+def parse_utility(string):
+    if string == "unigram-precision":
+        return unigram_precision
+    elif string == "beer":
+        return BEER()
+    else:
+        raise Exception("Unknown utility: " + string)
+
 def unigram_precision(hyp, ref):
     """
     :param hyp: hypothesis, list of tokens (strings).
@@ -26,8 +34,7 @@ class BEER:
         :param hyp: hypothesis, list of tokens (strings).
         :param ref: reference, list of tokens (strings).
         """
-        self.proc.stdin.write(("EVAL ||| " + " ".join(hyp) + " ||| " + \
-                               " ".join(ref) + "\n").encode("utf-8"))
+        self.proc.stdin.write("EVAL ||| {} ||| {}\n".format(" ".join(hyp), " ".join(ref)).encode("utf-8"))
         self.proc.stdin.flush()
         return float(self.proc.stdout.readline())
 
