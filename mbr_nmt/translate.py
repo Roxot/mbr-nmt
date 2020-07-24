@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from mbr_nmt.io import read_candidates_file
+from mbr_nmt.io import read_samples_file
 from mbr_nmt.utility import parse_utility
 from mbr_nmt.mbr import mbr
 
@@ -11,8 +11,8 @@ def translate(args):
     # Read and process input arguments.
     if args.candidates and not args.num_candidates:
         raise Exception("Must set --num-candidates if --candidates/-c is given.")
-    S = read_candidates_file(args.samples, args.num_samples)
-    C = read_candidates_file(args.candidates, args.num_candidates) if args.candidates else None
+    S = read_samples_file(args.samples, args.num_samples, add_eos=args.add_eos)
+    C = read_samples_file(args.candidates, args.num_candidates, add_eos=args.add_eos) if args.candidates else None
     if C is not None and len(C) != len(S):
         raise Exception("Different dataset size for candidates and samples.")
     utility = parse_utility(args.utility)
@@ -47,6 +47,9 @@ def create_parser(subparsers=None):
     parser.add_argument("--subsample-size", type=int,
                         help="If set, a smaller uniformly sampled subsample is used to compute expectations "
                              "for faster runtime.")
+    parser.add_argument("--add-eos", action="store_true",
+                        help="Add an EOS token to every sample and candidate. "
+                             "This is useful for dealing with empty sequences.")
     return parser
 
 if __name__ == "__main__":
