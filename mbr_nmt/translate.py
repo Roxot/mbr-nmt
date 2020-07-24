@@ -9,21 +9,21 @@ def translate(args):
     fout = sys.stdout
 
     # Read and process input arguments.
-    if args.samples and not args.num_samples:
-        raise Exception("Must set --num-samples if --samples/-s is given.")
-    candidates = read_candidates_file(args.candidates, args.num_candidates)
-    samples = read_candidates_file(args.samples, args.num_samples) if args.samples else None
-    if samples is not None and len(candidates) != len(samples):
+    if args.candidates and not args.num_candidates:
+        raise Exception("Must set --num-candidates if --candidates/-c is given.")
+    S = read_candidates_file(args.samples, args.num_samples)
+    C = read_candidates_file(args.candidates, args.num_candidates) if args.candidates else None
+    if C is not None and len(C) != len(S):
         raise Exception("Different dataset size for candidates and samples.")
     utility = parse_utility(args.utility)
 
     # Run MBR on the entire dataset.
-    for sequence_idx, candidate_set in enumerate(candidates):
-        sample_set = samples[sequence_idx] if samples else None
-        pred = mbr(candidate_set, utility, 
-                   samples=sample_set, 
+    for sequence_idx, samples in enumerate(S):
+        candidates = C[sequence_idx] if C else None
+        pred = mbr(samples, utility, 
+                   candidates=candidates, 
                    return_matrix=False,
-                   subsample_candidates=args.subsample_candidates)
+                   subsample_size=args.subsample_size)
         fout.write("{}\n".format(" ".join(pred)))
 
 
@@ -33,19 +33,20 @@ def create_parser(subparsers=None):
     else:
         parser = subparsers.add_parser("translate")
 
-    parser.add_argument("--candidates", "-c", type=str, required=True,
-                        help="File containing a list of translation candidates.")
-    parser.add_argument("--num-candidates", "-n", type=int, required=True,
-                        help="Number of candidates per input sequence.")
+    parser.add_argument("--samples", "-s", type=str, required=True,
+                        help="File containing translation samples, one per line, in order of input sequence.")
+    parser.add_argument("--num-samples", "-n", type=int, required=True,
+                        help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
                         help="Utility function to maximize.", choices=["unigram-precision", "beer"])
-    parser.add_argument("--samples", "-s", type=str, 
-                        help="File containing a list of translation samples. "
-                             "Assumed to be equal to candidates if not given.")
-    parser.add_argument("--num-samples", "-m", type=int,
-                        help="Number of samples per input sequence, only used if --samples/-s is set.")
-    parser.add_argument("--subsample-candidates", type=int,
-                        help="If set, will subsample the given amount of candidates to estimate expecatations.")
+    parser.add_argument("--candidates", "-c", type=str,
+                        help="File containing translation candidates, one per line, in order of input sequence. "
+                             "If not given, assumed to be equal to --samples/-s.")
+    parser.add_argument("--num-candidates", "-m", type=int,
+                        help="Number of candidates per input sequence, only used if --candidates/-c is set.")
+    parser.add_argument("--subsample-size", type=int,
+                        help="If set, a smaller uniformly sampled subsample is used to compute expectations "
+                             "for faster runtime.")
     return parser
 
 if __name__ == "__main__":

@@ -1,39 +1,43 @@
 import numpy as np
+import warnings
 
-def mbr(candidates, utility, samples=None, return_matrix=False, subsample_candidates=None):
+def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=None):
     """
-    Maximizes the MBR objective for one sentence given a list of candidates, utility function,
-    and optionally a separate list of samples.
+    Maximizes the MBR objective for one sentence given a list of samples, utility function,
+    and optionally a separate list of candidates.
 
-    :param candidates: a list of sentences representing translation candidates.
+    :param samples: a list of lists of strings, containing tokenized translation samples.
     :param utility: a utility function to maximize.
-    :param samples: optional, a list of sentences containing sampled translations used to approximate the expectation. If not given, assumed equal to candidates.
+    :param candidates: optional, a list of lists of sentences representing tokenized translation candidates
+                       to consider. If not given, assumed equal to samples.
     :param return_matrix: optional, boolean, if true this function additionally returns the utility matrix as a numpy.ndarray.
-    :param subsample_candidates: optional, integer, if given `samples` will be subsampled with replacement from `candidates`.
+    :param subsample_size: optional, integer, if given a smaller uniformly sampled subsample is used to approximate
+                           expectations for faster runtime.
     """
 
-    # Decide on how we will obtain MC samples to estimate E[utility(candidate, .)].
-    if subsample_candidates is not None:
-        if samples is not None:
-            raise Exception("Cannot subsample candidates and use a fixed set of samples.")
-        if subsample_candidates > len(candidates):
-            raise Warning("Subsample size is larger than the number of candidates. Are you sure this is intended?")
-        sample_indices = np.random.randint(0, len(candidates), size=[len(candidates), subsample_candidates])
-        candidates = np.array(candidates)
-        num_samples = subsample_candidates
-    elif samples is None:
-        samples = candidates
-        num_samples = len(candidates)
-    else:
-        num_samples = len(samples)
+    # If no candidates are given, we assume the samples to be the candidates.
+    if candidates is None: candidates = samples
+    num_samples = len(samples)
 
+    # Subsample a smaller amount of samples for each candidate if set.
+    if subsample_size is not None:
+        if subsample_size <= 0:
+            raise Exception("Invalid subsample size.")
+        if subsample_size > len(samples):
+            warnings.warn("Subsample size is larger than the number of samples. Are you sure this is intended?")
+        sample_indices = np.random.randint(0, len(samples), size=[len(candidates), subsample_size])
+        samples = np.array(samples)
+        num_samples = subsample_size
+        
     # Fill in the utility matrix.
     matrix = np.zeros([len(candidates), num_samples])
     for i, candidate in enumerate(candidates):
-        if subsample_candidates is not None:
-            samples = candidates[sample_indices[i]]
+        if subsample_size is not None:
+            subsample = samples[sample_indices[i]]
+        else:
+            subsample = samples
         
-        for j, sample in enumerate(samples):
+        for j, sample in enumerate(subsample):
             matrix[i, j] = utility(hyp=candidate, ref=sample)
 
     # Compute E[utility(candidate, .)]
