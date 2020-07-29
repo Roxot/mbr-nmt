@@ -28,10 +28,11 @@ def translate(args):
 
 
 def create_parser(subparsers=None):
+    description = "mbr-nmt translate: pick an optimal translation according to minimum Bayes risk decoding"
     if subparsers is None:
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(description=description)
     else:
-        parser = subparsers.add_parser("translate")
+        parser = subparsers.add_parser("translate", description=description)
 
     parser.add_argument("--samples", "-s", type=str, required=True,
                         help="File containing translation samples, one per line, in order of input sequence.")

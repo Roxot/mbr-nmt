@@ -19,3 +19,9 @@ def read_samples_file(filename, num_samples, tokenizer=default_tokenizer, add_eo
         raise Exception("Invalid candidate file, did you specify the number of samples correctly?")
 
     return samples
+
+def wc(filename):
+    count = 0
+    with open(filename, "r") as f:
+        count += sum(1 for line in f)
+    return count

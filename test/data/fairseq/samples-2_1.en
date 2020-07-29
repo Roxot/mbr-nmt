@@ -1,0 +1,21 @@
+Namespace()
+| [de] dictionary: 31944 types
+| [en] dictionary: 31944 types
+| loaded 2 examples from:
+| loaded 2 examples from:
+| test de-en 2998 examples
+| loading model(s) from
+S-1 source sentence 1
+T-1 target sentence 1
+H-1 -0.4962220788002014	He got the bike for his birthday .
+P-1 -0.0393 -0.0104 -0.0000 -0.0990 -0.0355 -1.1282 -0.5413 -2.5381
+H-1 -0.4962220788002014	He got the bike for his anniversary .
+P-1 -0.0393 -0.0192 -0.0104 -0.0000 -0.0990 -0.0355 -1.1282 -0.5413 -2.5381
+S-0 source sentence 0
+T-0 target sentence 0
+H-0 -0.4962220788002014	George went to school by bike today .
+P-0 -0.0393 -0.0104 -0.0000 -0.0990 -0.0355 -1.1282 -0.5413 -2.5381
+H-0 -0.2962220782002222 Today , George  went to school by bike .
+P-0 -0.0393 -0.0192 -0.0104 -0.0000 -0.0990 -0.0355 -1.1282 -0.5413 -2.5381
+| Translated 2 sentences (tokens) in 62.2s (48.21 sentences/s, 1356.50 tokens/s)
+| Generate test with beam=2: BLEU4 = 40.22, 70.2/48.6/35.9/26.8 (BP=0.945, ratio=0.946, syslen=81365, reflen=86010)
