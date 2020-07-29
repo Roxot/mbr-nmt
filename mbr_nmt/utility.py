@@ -2,6 +2,7 @@ import subprocess
 import os
 import threading
 import warnings
+import mbr_nmt
 
 def parse_utility(string, lang=None):
     if string == "unigram-precision":
@@ -54,12 +55,13 @@ class BEER:
         """
         Make sure to close the subprocess when no longer needed.
         """
-        self.lock.acquire()
-        self.proc.stdin.close()
-        self.proc.stdout.close()
-        self.proc.terminate()
-        self.proc.wait()
-        self.lock.release()
+        if hasattr(self, "lock"):
+            self.lock.acquire()
+            self.proc.stdin.close()
+            self.proc.stdout.close()
+            self.proc.terminate()
+            self.proc.wait()
+            self.lock.release()
 
 class METEOR:
 
@@ -68,7 +70,11 @@ class METEOR:
                            "nl", "no", "pt", "ro", "ru", "se", "tr"]
 
     def __init__(self, lang):
-        self.proc = subprocess.Popen(["java", "-Xmx2G", "-jar", "meteor/meteor-1.5.jar", "-", "-",
+        meteor_folder = os.path.join(mbr_nmt.__path__[0], 'metrics/meteor')
+        if not os.path.exists(meteor_folder):
+            raise Exception("METEOR not installed, expect meteor-1.5.jar and data in {}".format(meteor_folder))
+        jar_file = os.path.join(meteor_folder, "meteor-1.5.jar")
+        self.proc = subprocess.Popen(["java", "-Xmx2G", "-jar", jar_file, "-", "-",
                                        "-stdio", "-l", lang],
                                      cwd=os.path.dirname(os.path.abspath(__file__)),
                                      stdin=subprocess.PIPE,
@@ -87,12 +93,13 @@ class METEOR:
         return meteor
 
     def __del__(self):
-        self.lock.acquire()
-        self.proc.stdin.close()
-        self.proc.stdout.close()
-        self.proc.terminate()
-        self.proc.wait()
-        self.lock.release()
+        if hasattr(self, "lock"):
+            self.lock.acquire()
+            self.proc.stdin.close()
+            self.proc.stdout.close()
+            self.proc.terminate()
+            self.proc.wait()
+            self.lock.release()
 
     @staticmethod
     def is_available_lang(lang):
