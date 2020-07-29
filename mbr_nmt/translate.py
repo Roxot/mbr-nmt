@@ -15,7 +15,7 @@ def translate(args):
     C = read_samples_file(args.candidates, args.num_candidates, add_eos=args.add_eos) if args.candidates else None
     if C is not None and len(C) != len(S):
         raise Exception("Different dataset size for candidates and samples.")
-    utility = parse_utility(args.utility)
+    utility = parse_utility(args.utility, lang=args.lang)
 
     # Run MBR on the entire dataset.
     for sequence_idx, samples in enumerate(S):
@@ -30,21 +30,25 @@ def translate(args):
 def create_parser(subparsers=None):
     description = "mbr-nmt translate: pick an optimal translation according to minimum Bayes risk decoding"
     if subparsers is None:
-        parser = argparse.ArgumentParser(description=description)
+        parser = argparse.ArgumentParser(description=description,
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     else:
-        parser = subparsers.add_parser("translate", description=description)
+        parser = subparsers.add_parser("translate", description=description,
+                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("--samples", "-s", type=str, required=True,
                         help="File containing translation samples, one per line, in order of input sequence.")
     parser.add_argument("--num-samples", "-n", type=int, required=True,
                         help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
-                        help="Utility function to maximize.", choices=["unigram-precision", "beer"])
+                        help="Utility function to maximize.", choices=["unigram-precision", "beer", "meteor"])
     parser.add_argument("--candidates", "-c", type=str,
                         help="File containing translation candidates, one per line, in order of input sequence. "
                              "If not given, assumed to be equal to --samples/-s.")
     parser.add_argument("--num-candidates", "-m", type=int,
                         help="Number of candidates per input sequence, only used if --candidates/-c is set.")
+    parser.add_argument("--lang", "-l", type=str, default="en",
+                        help="Language code used to inform METEOR.")
     parser.add_argument("--subsample-size", type=int,
                         help="If set, a smaller uniformly sampled subsample is used to compute expectations "
                              "for faster runtime.")

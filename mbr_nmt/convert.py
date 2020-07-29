@@ -54,9 +54,11 @@ def convert_from_fairseq(input_files, output_file, verbose=True):
 def create_parser(subparsers=None):
     description = "mbr-nmt convert: converts input files to the desired input format required by `mbr-nmt translate`"
     if subparsers is None:
-        parser = argparse.ArgumentParser(description=description)
+        parser = argparse.ArgumentParser(description=description,
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     else:
-        parser = subparsers.add_parser("convert", description=description)
+        parser = subparsers.add_parser("convert", description=description,
+                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("--input-files", "-i", type=str, nargs="+", required=True,
                         help="A list of input files separated by spaces.")

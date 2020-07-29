@@ -1,11 +1,19 @@
 import subprocess
 import os
+import threading
+import warnings
 
-def parse_utility(string):
+def parse_utility(string, lang=None):
     if string == "unigram-precision":
         return unigram_precision
     elif string == "beer":
         return BEER()
+    elif string == "meteor":
+        if not METEOR.is_available_lang(lang):
+            warnings.warn("Language {} unavailable for METEOR, "
+                          "defaulting to {} instead.".format(lang, METEOR.default_lang))
+            lang = METEOR.default_lang
+        return METEOR(lang)
     else:
         raise Exception("Unknown utility: " + string)
 
@@ -28,21 +36,64 @@ class BEER:
         self.proc = subprocess.Popen([beer_home + "/scripts/interactive", "-t", str(threads)],
                             stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE)
+        self.lock = threading.Lock()
 
     def __call__(self, hyp, ref):
         """
         :param hyp: hypothesis, list of tokens (strings).
         :param ref: reference, list of tokens (strings).
         """
+        self.lock.acquire()
         self.proc.stdin.write("EVAL ||| {} ||| {}\n".format(" ".join(hyp), " ".join(ref)).encode("utf-8"))
         self.proc.stdin.flush()
-        return float(self.proc.stdout.readline())
+        beer = float(self.proc.stdout.readline())
+        self.lock.release()
+        return beer
 
-    def close(self):
+    def __del__(self):
         """
-        Make sure to close the subprocess by calling this function when finished.
+        Make sure to close the subprocess when no longer needed.
         """
+        self.lock.acquire()
         self.proc.stdin.close()
         self.proc.stdout.close()
         self.proc.terminate()
         self.proc.wait()
+        self.lock.release()
+
+class METEOR:
+
+    default_lang = "en"
+    available_languages = ["en", "cz", "de", "es", "fr", "da", "fi", "hu", "it",
+                           "nl", "no", "pt", "ro", "ru", "se", "tr"]
+
+    def __init__(self, lang):
+        self.proc = subprocess.Popen(["java", "-Xmx2G", "-jar", "meteor/meteor-1.5.jar", "-", "-",
+                                       "-stdio", "-l", lang],
+                                     cwd=os.path.dirname(os.path.abspath(__file__)),
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE)
+        self.lock = threading.Lock()
+
+    def __call__(self, hyp, ref):
+        self.lock.acquire()
+        self.proc.stdin.write("SCORE ||| {} ||| {}\n".format(" ".join(ref), " ".join(hyp)).encode("utf-8"))
+        self.proc.stdin.flush()
+        scores = self.proc.stdout.readline().decode("utf-8").rstrip()
+        self.proc.stdin.write("EVAL ||| {}\n".format(scores).encode("utf-8"))
+        self.proc.stdin.flush()
+        meteor = float(self.proc.stdout.readline().strip())
+        self.lock.release()
+        return meteor
+
+    def __del__(self):
+        self.lock.acquire()
+        self.proc.stdin.close()
+        self.proc.stdout.close()
+        self.proc.terminate()
+        self.proc.wait()
+        self.lock.release()
+
+    @staticmethod
+    def is_available_lang(lang):
+        return lang in METEOR.available_languages

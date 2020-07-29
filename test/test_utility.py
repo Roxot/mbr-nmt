@@ -1,6 +1,6 @@
 import unittest
 
-from mbr_nmt.utility import unigram_precision, BEER
+from mbr_nmt.utility import unigram_precision, BEER, METEOR
 
 class TestUtility(unittest.TestCase):
 
@@ -35,12 +35,36 @@ class TestUtility(unittest.TestCase):
 
         # It's difficult to test BEER, but we perform some sanity checks. 
         beer = BEER()
+        score11 = beer(hyp1, hyp1)
         score12 = beer(hyp1, hyp2)
         score13 = beer(hyp1, hyp3)        
         self.assertTrue(isinstance(score12, float))
         self.assertTrue(score12 >= 0. and score12 <= 1.)
         self.assertTrue(score13 >= 0. and score13 <= 1.)
+        self.assertTrue(score11 > score12 and score11 > score13)
         self.assertTrue(score12 > score13)
 
-        # Make sure to close beer running in the background.
-        beer.close()
+    def test_meteor(self):
+        hyp1 = "George went to school by bike today .".split(" ")
+        hyp2 = "Today , George went to school by bike .".split(" ")
+        hyp3 = "This is a completely unrelated sentence .".split(" ")
+
+        # Test that all available languages work.
+        for lang in METEOR.available_languages:
+
+            # Start the METEOR server, this might take a couple of seconds.
+            meteor = METEOR(lang=lang)
+
+            # Perform some sanity checks.
+            score11 = meteor(hyp1, hyp1)
+            score12 = meteor(hyp1, hyp2)
+            score13 = meteor(hyp1, hyp3)        
+            self.assertEqual(score11, 1.0)
+            self.assertTrue(isinstance(score12, float))
+            self.assertTrue(score12 >= 0. and score12 <= 1.)
+            self.assertTrue(score13 >= 0. and score13 <= 1.)
+            self.assertTrue(score12 > score13)
+        
+            # Close the METEOR server.
+            del meteor
+
