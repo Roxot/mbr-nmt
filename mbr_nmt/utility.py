@@ -46,6 +46,18 @@ class BLEU:
     def __call__(self, hyp, ref):
         return sacrebleu.sentence_bleu(' '.join(hyp), [' '.join(ref)], smooth_method=self._smooth_method, smooth_value=self._smooth_value, use_effective_order=self._use_effective_order).score
 
+class BLEURT:
+
+    def __init__(self, checkpoint_path):
+        try:
+            from bleurt import score
+        except ModuleNotFoundError:
+            raise Exception("You need to install google BLEURT, see https://github.com/google-research/bleurt")
+        self._scorer = score.BleurtScorer(checkpoint_path)
+
+    def __call__(self, hyp, ref):
+        return self._scorer.score([' '.join(ref)], [' '.join(hyp)], batch_size=1)[0]
+
 
 class ChrF:
 
