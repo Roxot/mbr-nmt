@@ -1,6 +1,6 @@
 import unittest
 
-from mbr_nmt.utility import unigram_precision, BEER, METEOR
+from mbr_nmt.utility import unigram_precision, BEER, METEOR, BLEU, ChrF, TER
 
 class TestUtility(unittest.TestCase):
 
@@ -27,6 +27,58 @@ class TestUtility(unittest.TestCase):
         result = unigram_precision(hyp1, hyp4)
         expected = 0.
         self.assertEqual(result, expected)
+    
+    def test_bleu(self):
+        hyp1 = "George went to school by bike today .".split(" ")
+        hyp2 = "Today , George went to school by bike .".split(" ")
+        hyp3 = "This is a completely unrelated sentence .".split(" ")
+        hyp4 = "a a a a a a".split(" ")
+        hyps = [hyp1, hyp2, hyp3, hyp4]
+
+        bleu = BLEU()
+        expected = 1.
+        for hyp in hyps:
+            result = bleu(hyp, hyp)
+            self.assertEqual(result, expected)
+
+        for ref, expected in zip(hyps, [100., 62.40, 0.0, 0.0]):
+            result = bleu(hyp1, ref)
+            self.assertEqual(result, expected)
+    
+    def test_chrf(self):
+        hyp1 = "George went to school by bike today .".split(" ")
+        hyp2 = "Today , George went to school by bike .".split(" ")
+        hyp3 = "This is a completely unrelated sentence .".split(" ")
+        hyp4 = "a a a a a a".split(" ")
+        hyps = [hyp1, hyp2, hyp3, hyp4]
+
+        chrf = ChrF()
+        expected = 1.
+        for hyp in hyps:
+            result = chrf(hyp, hyp)
+            self.assertEqual(result, expected)
+
+        for ref, expected in zip(hyps, [1., 0.8202, 0.1134, 0.0154]):
+            result = chrf(hyp1, ref)
+            self.assertEqual(result, expected)
+    
+    
+    def test_ter(self):
+        hyp1 = "George went to school by bike today .".split(" ")
+        hyp2 = "Today , George went to school by bike .".split(" ")
+        hyp3 = "This is a completely unrelated sentence .".split(" ")
+        hyp4 = "a a a a a a".split(" ")
+        hyps = [hyp1, hyp2, hyp3, hyp4]
+
+        ter = TER()
+        expected = 1.
+        for hyp in hyps:
+            result = ter(hyp, hyp)
+            self.assertEqual(result, expected)
+
+        for ref, expected in zip(hyps, [0.0, -0.2222, -1.0, -1.3333]):
+            result = ter(hyp1, ref)
+            self.assertEqual(result, expected)
  
     def test_beer(self):
         hyp1 = "George went to school by bike today .".split(" ")
