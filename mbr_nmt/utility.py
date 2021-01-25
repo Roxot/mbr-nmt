@@ -4,6 +4,7 @@ import threading
 import warnings
 import mbr_nmt
 import sacrebleu
+from itertools import combinations
 
 
 def parse_utility(string, lang=None):
@@ -33,7 +34,72 @@ def unigram_precision(hyp, ref):
     """
     hyp_set = set(hyp)
     matches = hyp_set.intersection(set(ref))
-    return len(matches) / len(hyp_set)
+    return  len(matches) / len(hyp_set) if hyp_set else 0.0 # if hyp_set is emtpy, there can be no matches
+
+
+class UnigramPrecision:
+
+    def __init__(self):
+        pass
+
+    def __call__(self, hyp, ref):
+        return unigram_precision(hyp, ref)
+
+
+class UnigramRecall:
+
+    def __init__(self):
+        pass
+
+    def __call__(self, hyp, ref):
+        ref_set = set(ref)
+        matches = set(hyp).intersection(ref_set)
+        return len(matches) / len(ref_set)  if ref_set else 0.0  # if ref_set is empty, there can be no matches
+
+
+class UnigramF:
+
+    def __init__(self):
+        pass
+
+    def __call__(self, hyp, ref):
+        hyp_set = set(hyp)
+        ref_set = set(ref)
+        matches = hyp_set.intersection(ref_set)
+        n = len(matches)
+        p = n / len(hyp_set)
+        r = n / len(ref_set)
+        return 0.0 if (p + r) == 0. else 2. * p * r / (p + r)  # if the sum is 0, so is the product
+
+
+class SkipBigramPrecision:
+    
+    def __call__(self, hyp, ref):
+        hyp_set = set(combinations(hyp, 2))
+        ref_set = set(combinations(ref, 2))
+        matches = hyp_set.intersection(ref_set)
+        return len(matches) / len(hyp_set) if hyp_set else 0.0
+
+    
+class SkipBigramRecall:
+    
+    def __call__(self, hyp, ref):
+        hyp_set = set(combinations(hyp, 2))
+        ref_set = set(combinations(ref, 2))
+        matches = hyp_set.intersection(ref_set)
+        return len(matches) / len(ref_set) if ref_set else 0.0   
+
+    
+class SkipBigramF:
+    
+    def __call__(self, hyp, ref):
+        hyp_set = set(combinations(hyp, 2))
+        ref_set = set(combinations(ref, 2))
+        matches = hyp_set.intersection(ref_set)
+        n = len(matches)
+        p = n / len(hyp_set) if hyp_set else 0.0
+        r = n / len(ref_set) if ref_set else 0.0
+        return 0.0 if (p + r) == 0. else 2. * p * r / (p + r)
 
 
 class BLEU:

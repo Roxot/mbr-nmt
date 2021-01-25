@@ -44,9 +44,11 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     expectation = np.average(matrix, axis=1)
 
     # Pick the argmax as final translation.
-    prediction = candidates[np.argmax(expectation)]
+    prediction_idx = np.argmax(expectation)
+    prediction = candidates[prediction_idx]
 
+    # TODO changed this, tests are broken now. (didn't return pred_idx before)
     if return_matrix:
-        return prediction, matrix
+        return prediction_idx, prediction, matrix
     else:
-        return prediction
+        return prediction_idx, prediction
