@@ -1,18 +1,57 @@
 import argparse
+import numpy as np
+
 from collections import defaultdict
 from tqdm import tqdm
+from sacremoses import MosesDetruecaser
+from sacremoses import MosesTokenizer, MosesDetokenizer
 
 from mbr_nmt.io import wc
+from mbr_nmt.processing import merge_subwords as merge
 
 def convert(args):
     if args.input_format == "fairseq":
-        convert_from_fairseq(args.input_files, args.output_file)
+        convert_from_fairseq(args.input_files, args.output_file,
+                             merge_subwords=args.merge_subwords,
+                             detruecase=args.detruecase,
+                             detokenize=args.detokenize,
+                             lang=args.lang)
+    if args.input_format == "mbr-nmt":
+        if len(args.input_files) > 1:
+            raise exception("Multiple input files not supported for mbr-nmt format.")
+        convert_mbr_translations(args.input_files[0], args.output_file)
     else:
         raise Exception("Unknown input format: {}".format(args.input_format))
 
-def convert_from_fairseq(input_files, output_file, verbose=True):
+def convert_mbr_translations(input_file, output_file):
+    sent_ids = []
+    translations = []
+    
+    with open(input_file, "r") as fi:
+        for line in fi:
+            try:
+                sent_idx, translation, pred_idx = line.split(" ||| ")
+                sent_ids.append(int(sent_idx))
+                translations.append(translation.strip())
+            except:
+                raise Exception("Invalid file format, expects lines like 'sentence_id ||| translation'")
+
+    sort_ids = np.argsort(sent_ids)
+    with open(output_file, "w") as fo:
+        for sort_idx in sort_ids:
+            sent_idx = sent_ids[sort_idx]
+            fo.write(f"{translations[sort_idx]}\n")
+
+def convert_from_fairseq(input_files, output_file, merge_subwords=False, 
+                         detruecase=False, detokenize=False, lang="en",
+                         verbose=True):
     hyps = defaultdict(list)
     num_lines = sum(wc(input_file) for input_file in input_files)
+
+    if detruecase:
+        detruecaser = MosesDetruecaser()
+    if detokenize:
+        detokenizer = MosesDetokenizer(lang)
     
     # Parse the fairseq input files.
     if verbose: print("parsing input files...")
@@ -27,7 +66,14 @@ def convert_from_fairseq(input_files, output_file, verbose=True):
                     idx = int(line[0].split("-")[1])
                     likelihood = line[1]
                     tokens = line[2:]
-                    hyps[idx].append(" ".join(tokens))
+                    hyp = ' '.join(tokens)
+                    if merge_subwords:
+                        hyp = merge(hyp, style="fairseq")
+                    if detruecase:
+                        hyp = detruecaser.detruecase(hyp, return_str=True)
+                    if detokenize:
+                        hyp = detokenizer.detokenize(hyp.split(' '))
+                    hyps[idx].append(hyp)
     finally:
         if verbose: pbar.close()
 
@@ -65,7 +111,17 @@ def create_parser(subparsers=None):
     parser.add_argument("--output_file", "-o", type=str, required=True,
                         help="The destination output file of hypotheses stored in mbr-nmt format.")
     parser.add_argument("--input-format", "-f", type=str, default="fairseq",
-                        help="Input file format.", choices=["fairseq"])
+                        help="Input file format.", choices=["fairseq", "mbr-nmt"])
+    parser.add_argument("--merge_subwords", action="store_true",
+                        help="Merges subwords in the translations.")
+    parser.add_argument("--detruecase", action="store_true",
+                        help="Detruecase translations using the Moses detruecaser.")
+    parser.add_argument("--detokenize", action="store_true",
+                        help="Detokenize translations using the Moses detokenizer.")
+    parser.add_argument("--lang", type=str, default="en",
+                        help="Language used for the Moses detokenizer.")
+
+    parser.set_defaults(merge_subwords=False, detruecase=False, detokenize=False)
 
     return parser
 

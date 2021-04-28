@@ -15,4 +15,4 @@ def main():
     elif args.command == "convert":
         convert.convert(args)
     else:
-        raise Exception("Unknown command: {}".format(args.command))
+        parser.print_help() 

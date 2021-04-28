@@ -1,14 +1,18 @@
 import numpy as np
 import warnings
 
+def unique_samples(samples):
+    _, uniq_ids = np.unique(samples, return_index=True)
+    return [samples[idx] for idx in uniq_ids]
+
 def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=None):
     """
     Maximizes the MBR objective for one sentence given a list of samples, utility function,
     and optionally a separate list of candidates.
 
-    :param samples: a list of lists of strings, containing tokenized translation samples.
+    :param samples: a list of lists of strings, containing translation samples.
     :param utility: a utility function to maximize.
-    :param candidates: optional, a list of lists of sentences representing tokenized translation candidates
+    :param candidates: optional, a list of lists of sentences representing translation candidates
                        to consider. If not given, assumed equal to samples.
     :param return_matrix: optional, boolean, if true this function additionally returns the utility matrix as a numpy.ndarray.
     :param subsample_size: optional, integer, if given a smaller uniformly sampled subsample is used to approximate
@@ -16,7 +20,7 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     """
 
     # If no candidates are given, we assume the samples to be the candidates.
-    if candidates is None: candidates = samples
+    if candidates is None: candidates = unique_samples(samples)
     num_samples = len(samples)
 
     # Subsample a smaller amount of samples for each candidate if set.
@@ -25,18 +29,15 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
             raise Exception("Invalid subsample size.")
         if subsample_size > len(samples):
             warnings.warn("Subsample size is larger than the number of samples. Are you sure this is intended?")
-        sample_indices = np.random.randint(0, len(samples), size=[len(candidates), subsample_size])
-        samples = np.array(samples)
+        sample_indices = np.random.choice(len(samples), subsample_size, replace=True)
+        subsample = [samples[idx] for idx in sample_indices]
         num_samples = subsample_size
+    else:
+        subsample = samples
         
     # Fill in the utility matrix.
     matrix = np.zeros([len(candidates), num_samples])
     for i, candidate in enumerate(candidates):
-        if subsample_size is not None:
-            subsample = samples[sample_indices[i]]
-        else:
-            subsample = samples
-        
         for j, sample in enumerate(subsample):
             matrix[i, j] = utility(hyp=candidate, ref=sample)
 
