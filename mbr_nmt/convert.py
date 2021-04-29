@@ -16,7 +16,7 @@ def convert(args):
                              detruecase=args.detruecase,
                              detokenize=args.detokenize,
                              lang=args.lang)
-    if args.input_format == "mbr-nmt":
+    elif args.input_format == "mbr-nmt":
         if len(args.input_files) > 1:
             raise exception("Multiple input files not supported for mbr-nmt format.")
         convert_mbr_translations(args.input_files[0], args.output_file)
