@@ -1,1 +1,6 @@
+numpy
+BLEURT
+tqdm
+nltk
 sacrebleu
+sacremoses
