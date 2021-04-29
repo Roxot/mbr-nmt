@@ -14,7 +14,7 @@ from nltk.util import ngrams
 
 from mbr_nmt.external.chrF import computeChrF
 
-def parse_utility(string, lang=None):
+def parse_utility(string, lang=None, bleurt_checkpoint=None):
     if string == "unigram-precision":
         return NGramPrecision(1)
     elif string == "beer":
@@ -34,7 +34,7 @@ def parse_utility(string, lang=None):
     elif string == "ter":
         return TER()
     elif string == "bleurt":
-        return BLEURT()
+        return BLEURT(bleurt_checkpoint)
     else:
         raise Exception("Unknown utility: " + string)
 
@@ -146,7 +146,7 @@ class BLEU:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
-        return sacrebleu.sentence_bleu(hyp, [ref], smooth_method=self._smooth_method, 
+        return sacrebleu.sentence_bleu(hyp, ref, smooth_method=self._smooth_method, 
                                        smooth_value=self._smooth_value, 
                                        use_effective_order=self._use_effective_order).score
 
@@ -180,6 +180,7 @@ class ChrFPP:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if len(hyp) == 0 or len(ref) == 0: return 0.
         return computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
 
 class TER:

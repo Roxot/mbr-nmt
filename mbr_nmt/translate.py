@@ -90,7 +90,8 @@ def create_parser(subparsers=None):
     parser.add_argument("--num-samples", "-n", type=int, required=True,
                         help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
-                        help="Utility function to maximize.", choices=["unigram-precision", "beer", "meteor"])
+                        help="Utility function to maximize.", choices=["unigram-precision", "beer", "meteor",
+                                                                       "bleu", "chrf", "chrf++"])
     parser.add_argument("--candidates", "-c", type=str,
                         help="File containing translation candidates, one per line preceded by the number of "
                              "candidates (e.g. NC=300), in order of input sequence. "
