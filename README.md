@@ -1,6 +1,13 @@
 # mbr-nmt
 Minimum Bayes-Risk Decoding for Neural Machine Translation
 
+# Installation
+```
+git clone git@github.com:Roxot/mbr-nmt.git
+cd mbr-nmt
+pip install .
+```
+
 # Basic usage
 ```
 mbr-nmt translate -i sample_filename -n num_samples -u utility -o output_filename [-c candidates_file]
