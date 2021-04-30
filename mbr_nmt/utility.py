@@ -3,9 +3,12 @@ import os
 import threading
 import warnings
 import sacrebleu
-import bleurt
 import tempfile
 import re
+try:
+    import bleurt
+except ImportError:
+    bleurt = None
 
 import mbr_nmt
 
@@ -34,6 +37,7 @@ def parse_utility(string, lang=None, bleurt_checkpoint=None):
     elif string == "ter":
         return TER()
     elif string == "bleurt":
+        if bleurt is None: raise Exception("BLEURT not installed.")
         return BLEURT(bleurt_checkpoint)
     else:
         raise Exception("Unknown utility: " + string)

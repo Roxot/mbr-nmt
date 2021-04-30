@@ -1,5 +1,4 @@
 numpy
-BLEURT
 tqdm
 nltk
 sacrebleu
