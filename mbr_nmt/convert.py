@@ -108,11 +108,11 @@ def create_parser(subparsers=None):
 
     parser.add_argument("--input-files", "-i", type=str, nargs="+", required=True,
                         help="A list of input files separated by spaces.")
-    parser.add_argument("--output_file", "-o", type=str, required=True,
+    parser.add_argument("--output-file", "-o", type=str, required=True,
                         help="The destination output file of hypotheses stored in mbr-nmt format.")
     parser.add_argument("--input-format", "-f", type=str, default="fairseq",
                         help="Input file format.", choices=["fairseq", "mbr-nmt"])
-    parser.add_argument("--merge_subwords", action="store_true",
+    parser.add_argument("--merge-subwords", action="store_true",
                         help="Merges subwords in the translations.")
     parser.add_argument("--detruecase", action="store_true",
                         help="Detruecase translations using the Moses detruecaser.")

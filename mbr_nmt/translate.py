@@ -107,7 +107,7 @@ def create_parser(subparsers=None):
     parser.add_argument("--threads", "-t", type=int, required=False, default=-1,
                         help="The number of threads to run. Depending on your CPU this can significantly "
                               "speed up computation. By default uses all available CPUs.")
-    parser.add_argument("--output_file", "-o", type=str, required=False, default=None,
+    parser.add_argument("--output-file", "-o", type=str, required=False, default=None,
                         help="File to output translations to.")
     return parser
 
