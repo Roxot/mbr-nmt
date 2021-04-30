@@ -10,7 +10,7 @@ pip install .
 
 # Basic usage
 ```
-mbr-nmt translate -i sample_filename -n num_samples -u utility -o output_filename [-c candidates_file]
+mbr-nmt translate -s sample_filename -n num_samples -u utility -o output_filename [-c candidates_file]
 ```
 
 Because sentences are not translated in order, the output of `mbr-nmt translate` should be ordered correctly first. This can be done using `mbr-nmt convert` as follows:
@@ -22,7 +22,7 @@ mbr-nmt convert -f mbr-nmt -i mbr_nmt_translate_output -o translations_file
 ## Example usage
 ```
 mbr-nmt convert -f fairseq -i fairseq-output -o samples-300.en --merge-subwords --detruecase --detokenize
-mbr-nmt translate -i samples-300.en -n 300 -u beer -o translations.en.mbr
+mbr-nmt translate -s samples-300.en -n 300 -u beer -o translations.en.mbr
 mbr-nmt convert -f mbr-nmt -i translations.en.mbr -o translations.en 
 ```
 
