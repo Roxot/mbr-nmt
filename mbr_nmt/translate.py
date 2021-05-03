@@ -4,6 +4,8 @@ import time
 import numpy as np
 import multiprocessing
 
+from pathlib import Path
+
 from mbr_nmt.io import read_samples_file, read_candidates_file
 from mbr_nmt.utility import parse_utility
 from mbr_nmt.mbr import mbr
@@ -17,6 +19,12 @@ def translate(args):
     if C is not None and len(C) != len(S):
         raise Exception("Different dataset size for candidates and samples.")
 
+    if args.store_expected_utility:
+        exp_utility_folder = Path(args.store_expected_utility)
+        exp_utility_folder.mkdir(exist_ok=True)
+    else:
+        exp_utility_folder = Nojne
+
     # Run MBR on the entire dataset.
     start_time = time.time()
     
@@ -27,7 +35,7 @@ def translate(args):
         raise Exception("Using more threads than translation candidates.")
 
     writer_queue = multiprocessing.Queue()
-    writer_process = multiprocessing.Process(target=writer_job, args=(writer_queue, args.output_file))
+    writer_process = multiprocessing.Process(target=writer_job, args=(writer_queue, args.output_file, exp_utility_folder))
     writer_process.start()
 
     # Split up the input data into multiple threads.
@@ -48,19 +56,23 @@ def translate(args):
     # Wait for all processes to end.
     for process in processes:
         process.join()
-    writer_queue.put((-1, "", -1))
+    writer_queue.put((-1, "", -1, None))
     writer_process.join()
 
     finfo.write(f"Decoding took {time.time() - start_time:.0f}s\n")
 
-def writer_job(queue, filename):
+def writer_job(queue, filename, expected_utility_folder):
     if filename: fout = open(filename, "w")
     else: fout = sys.stdout
+    
     try:
         while True:
-            sent_idx, translation, pred_idx = queue.get()
+            sent_idx, translation, pred_idx, utility_matrix = queue.get()
             if sent_idx < 0: break
             fout.write("{} ||| {} ||| {}\n".format(sent_idx, translation, pred_idx))
+            if expected_utility_folder:
+                expected_utility = utility_matrix.mean(axis=1)
+                np.save(expected_utility_folder / f"exp-util-{sent_idx}.npy", expected_utility)
     finally:
         if filename: fout.close()
 
@@ -69,12 +81,12 @@ def run_mbr(S, C, start_idx, args, writer_queue):
 
     for sequence_idx, samples in enumerate(S):
         candidates = C[sequence_idx] if C else None
-        pred_idx, pred = mbr(samples, utility, 
-                   candidates=candidates, 
-                   return_matrix=False,
-                   subsample_size=args.subsample_size)
-        # fout.write("{} ||| {}\n".format(start_idx+sequence_idx, pred))
-        writer_queue.put((start_idx+sequence_idx, pred, pred_idx))
+        pred_idx, pred, utility_matrix = mbr(samples, utility, 
+                                             candidates=candidates, 
+                                             return_matrix=True,
+                                             subsample_size=args.subsample_size,
+                                             subsample_per_candidate=args.subsample_per_candidate)
+        writer_queue.put((start_idx+sequence_idx, pred, pred_idx, utility_matrix))
 
 def create_parser(subparsers=None):
     description = "mbr-nmt translate: pick an optimal translation according to minimum Bayes risk decoding"
@@ -109,6 +121,11 @@ def create_parser(subparsers=None):
                               "speed up computation. By default uses all available CPUs.")
     parser.add_argument("--output-file", "-o", type=str, required=False, default=None,
                         help="File to output translations to.")
+    parser.add_argument("--store-expected-utility", type=str, required=False, default=None,
+                       help="Folder to optionally store expected utility vectors.")
+    parser.add_argument("--subsample-per-candidate", action="store_true",
+                        help="Use a different subsample for each candidate.")
+    parser.set_defaults(subsample_per_candidate=False)
     return parser
 
 if __name__ == "__main__":
