@@ -24,7 +24,7 @@ def translate(args):
         exp_utility_folder = Path(args.store_expected_utility)
         exp_utility_folder.mkdir(exist_ok=True)
     else:
-        exp_utility_folder = Nojne
+        exp_utility_folder = None
 
     if args.seed:
         random.seed(args.seed)
