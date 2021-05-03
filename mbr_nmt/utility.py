@@ -336,13 +336,16 @@ class METEOR:
         :param hyp: string, system hypothesis, tokens separated by spaces.
         :param ref: string, single reference, tokens separated by spaces.
         """
-        
+
         self.lock.acquire()
         self.proc.stdin.write("SCORE ||| {} ||| {}\n".format(ref, hyp).encode("utf-8"))
         self.proc.stdin.flush()
         scores = self.proc.stdout.readline().decode("utf-8").rstrip()
         self.proc.stdin.write("EVAL ||| {}\n".format(scores).encode("utf-8"))
         self.proc.stdin.flush()
+        print("output:",self.proc.stdout.readline().strip())
+        print("hyp:", hyp)
+        print("ref:", ref)
         meteor = float(self.proc.stdout.readline().strip())
         self.lock.release()
         return meteor

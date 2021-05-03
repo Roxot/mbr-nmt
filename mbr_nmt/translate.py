@@ -3,6 +3,7 @@ import sys
 import time
 import numpy as np
 import multiprocessing
+import random
 
 from pathlib import Path
 
@@ -25,9 +26,13 @@ def translate(args):
     else:
         exp_utility_folder = Nojne
 
+    if args.seed:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+
     # Run MBR on the entire dataset.
     start_time = time.time()
-    
+
     threads = args.threads
     if args.threads <= 0:
         threads = min(multiprocessing.cpu_count(), len(S))
@@ -52,7 +57,7 @@ def translate(args):
         process.start()
         idx += num_per_thread
         finfo.write(f"Started process {t+1} for doing {len(S_t)} translations.\n")
-    
+
     # Wait for all processes to end.
     for process in processes:
         process.join()
@@ -125,6 +130,8 @@ def create_parser(subparsers=None):
                        help="Folder to optionally store expected utility vectors.")
     parser.add_argument("--subsample-per-candidate", action="store_true",
                         help="Use a different subsample for each candidate.")
+    parser.add_argument("--seed", type=int, default=None, required=False,
+                        help="An optional random seed.")
     parser.set_defaults(subsample_per_candidate=False)
     return parser
 

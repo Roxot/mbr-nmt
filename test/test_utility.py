@@ -1,14 +1,15 @@
 import unittest
 
-from mbr_nmt.utility import unigram_precision, BEER, METEOR, BLEU, ChrF, TER
+from mbr_nmt.utility import NGramPrecision, BEER, METEOR, BLEU, ChrF, TER
 
 class TestUtility(unittest.TestCase):
 
     def test_unigram_precision(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
-        hyp4 = "a a a a a a".split(" ")
+        unigram_precision = NGramPrecision(1)
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
+        hyp4 = "a a a a a a"
         hyps = [hyp1, hyp2, hyp3, hyp4]
 
         expected = 1.
@@ -27,12 +28,12 @@ class TestUtility(unittest.TestCase):
         result = unigram_precision(hyp1, hyp4)
         expected = 0.
         self.assertEqual(result, expected)
-    
+
     def test_bleu(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
-        hyp4 = "a a a a a a".split(" ")
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
+        hyp4 = "a a a a a a"
         hyps = [hyp1, hyp2, hyp3, hyp4]
 
         bleu = BLEU()
@@ -44,12 +45,12 @@ class TestUtility(unittest.TestCase):
         for ref, expected in zip(hyps, [100., 62.40, 0.0, 0.0]):
             result = bleu(hyp1, ref)
             self.assertEqual(result, expected)
-    
+
     def test_chrf(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
-        hyp4 = "a a a a a a".split(" ")
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
+        hyp4 = "a a a a a a"
         hyps = [hyp1, hyp2, hyp3, hyp4]
 
         chrf = ChrF()
@@ -61,13 +62,12 @@ class TestUtility(unittest.TestCase):
         for ref, expected in zip(hyps, [1., 0.8202, 0.1134, 0.0154]):
             result = chrf(hyp1, ref)
             self.assertEqual(result, expected)
-    
-    
+
     def test_ter(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
-        hyp4 = "a a a a a a".split(" ")
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
+        hyp4 = "a a a a a a"
         hyps = [hyp1, hyp2, hyp3, hyp4]
 
         ter = TER()
@@ -79,11 +79,11 @@ class TestUtility(unittest.TestCase):
         for ref, expected in zip(hyps, [0.0, -0.2222, -1.0, -1.3333]):
             result = ter(hyp1, ref)
             self.assertEqual(result, expected)
- 
+
     def test_beer(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
 
         # It's difficult to test BEER, but we perform some sanity checks. 
         beer = BEER()
@@ -97,9 +97,9 @@ class TestUtility(unittest.TestCase):
         self.assertTrue(score12 > score13)
 
     def test_meteor(self):
-        hyp1 = "George went to school by bike today .".split(" ")
-        hyp2 = "Today , George went to school by bike .".split(" ")
-        hyp3 = "This is a completely unrelated sentence .".split(" ")
+        hyp1 = "George went to school by bike today ."
+        hyp2 = "Today , George went to school by bike ."
+        hyp3 = "This is a completely unrelated sentence ."
 
         # Test that all available languages work.
         for lang in METEOR.available_languages:
