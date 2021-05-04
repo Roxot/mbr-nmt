@@ -38,14 +38,41 @@ def parse_utility(string, lang=None, bleurt_checkpoint=None):
     elif string == "ter":
         return TER()
     elif string == "bleurt":
-        if bleurt is None: raise Exception("BLEURT not installed.")
+        if bleurt_score is None: raise Exception("BLEURT not installed.")
+        if bleurt_checkpoint is None: raise Exception("Bleurt checkpoint not set.")
         return BLEURT(bleurt_checkpoint)
     else:
         raise Exception("Unknown utility: " + string)
 
-class NGramPrecision:
+class Utility:
+
+    def __init__(self):
+
+        # Whether this utility supports batching with self.sentence_scores(hyps, refs)
+        self.supports_batching = False
+
+    def sentence_scores(self, hyps, refs):
+        """
+        :param hyps: list of strings, system hypotheses.
+        :param refs: list of strings, single reference per input.
+        
+        Returns a list of sentence-level scores. Required if self.supports_batching == True.
+        """
+        pass
+
+    def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+
+        returns the utility score of a single hypothesis, reference pair as float.
+        """
+        pass
+
+class NGramPrecision(Utility):
 
     def __init__(self, n):
+        Utility.__init__(self)
         self.n = n
 
     def __call__(self, hyp: str, ref: str):
@@ -59,9 +86,10 @@ class NGramPrecision:
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(hyp_set) if hyp_set else 0.
 
-class NGramRecall:
+class NGramRecall(Utility):
 
     def __init__(self, n):
+        Utility.__init__(self)
         self.n = n
 
     def __call__(self, hyp: str, ref: str):
@@ -75,9 +103,10 @@ class NGramRecall:
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(ref_set) if ref_set else 0.
 
-class NGramF:
+class NGramF(Utility):
 
     def __init__(self, n):
+        Utility.__init__(self)
         self.n = n
 
     def __call__(self, hyp: str, ref: str):
@@ -94,7 +123,7 @@ class NGramF:
         r = n / len(ref_set) if len(ref_set) else 0.
         return 0. if (p + r) == 0. else 2. * p * r / (p + r)
 
-class SkipBigramPrecision:
+class SkipBigramPrecision(Utility):
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -108,7 +137,7 @@ class SkipBigramPrecision:
         return len(matches) / len(hyp_set) if hyp_set else 0.0
 
     
-class SkipBigramRecall:
+class SkipBigramRecall(Utility):
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -121,7 +150,7 @@ class SkipBigramRecall:
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(ref_set) if ref_set else 0.0   
     
-class SkipBigramF:
+class SkipBigramF(Utility):
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -138,9 +167,10 @@ class SkipBigramF:
         return 0.0 if (p + r) == 0. else 2. * p * r / (p + r)
 
 
-class BLEU:
+class BLEU(Utility):
 
     def __init__(self, smooth_method='floor', smooth_value=None, use_effective_order=True):
+        Utility.__init__(self)
         self._smooth_method = smooth_method
         self._smooth_value = smooth_value
         self._use_effective_order = use_effective_order
@@ -169,9 +199,10 @@ class BLEU:
                                        smooth_value=self._smooth_value, 
                                        use_effective_order=self._use_effective_order).score
 
-class ChrF:
+class ChrF(Utility):
 
     def __init__(self, order=6, beta=2, remove_whitespace=True):
+        Utility.__init__(self)
         self._order = order
         self._beta = beta
         self._remove_whitespace = remove_whitespace
@@ -199,9 +230,10 @@ class ChrF:
                                      beta=self._beta,
                                      remove_whitespace=self._remove_whitespace).score
 
-class ChrFPP:
+class ChrFPP(Utility):
 
     def __init__(self, nworder=2, ncorder=6, beta=2.):
+        Utility.__init__(self)
         self.nworder = nworder
         self.ncorder = ncorder
         self.beta = beta
@@ -225,9 +257,10 @@ class ChrFPP:
         if len(hyp) == 0 or len(ref) == 0: return 0.
         return computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
 
-class TER:
+class TER(Utility):
 
     def __init__(self, normalized=False, no_punct=False, asian_support=False, case_sensitive=False):
+        Utility.__init__(self)
         self._normalized = normalized
         self._no_punct = no_punct
         self._asian_support = asian_support
@@ -244,9 +277,10 @@ class TER:
                case_sensitive=self._case_sensitive).score
         return -loss
 
-class BEER:
+class BEER(Utility):
 
     def __init__(self, threads=4, model="default"):
+        Utility.__init__(self)
         if "BEER_HOME" not in os.environ:
             raise Exception("For use of BEER as utility, make sure BEER is installed and "
                             "$BEER_HOME is set.")
@@ -321,7 +355,7 @@ class BEER:
             self.proc.wait()
             self.lock.release()
 
-class METEOR:
+class METEOR(Utility):
 
     default_lang = "en"
     fully_supported = ["en", "cz", "fr", "de", "es"]
@@ -334,6 +368,7 @@ class METEOR:
         :param tokenize: whether to use the built-in METEOR tokenizer. Only available for languages in METEOR.fully_supported.
         :param custom_args: additional custom args to be passed to METEOR.
         """
+        Utility.__init__(self)
         if tokenize is None: tokenize = lang in METEOR.fully_supported
         meteor_folder = os.path.join(mbr_nmt.__path__[0], 'metrics/meteor')
         if not os.path.exists(meteor_folder):
@@ -432,9 +467,10 @@ class METEOR:
     def is_available_lang(lang):
         return lang in METEOR.available_languages
 
-class BLEURT:
+class BLEURT(Utility):
     
     def __init__(self, checkpoint, batch_size=16):
+        Utility.__init__(self)
         self.supports_batching = True
         self.batch_size = batch_size
         self.scorer = bleurt_score.BleurtScorer(checkpoint)

@@ -1,5 +1,0 @@
-numpy
-tqdm
-nltk
-sacrebleu
-sacremoses

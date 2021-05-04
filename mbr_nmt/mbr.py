@@ -22,6 +22,7 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     # If no candidates are given, we assume the samples to be the candidates.
     if candidates is None: candidates = unique_samples(samples)
     num_samples = len(samples)
+    num_candidates = len(candidates)
 
     # Subsample a smaller amount of samples for each candidate if set.
     if subsample_size is not None:
@@ -34,22 +35,33 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
             sample_indices = np.random.choice(len(samples), subsample_size, replace=True)
             subsample = [samples[idx] for idx in sample_indices]
         else:
-            sample_indices = np.random.choice(len(samples), [len(candidates), subsample_size], replace=True)
+            sample_indices = np.random.choice(num_samples, [num_candidates, subsample_size], replace=True)
 
         num_samples = subsample_size
+    elif subsample_per_candidate:
+        raise Exception("subsample_per_candidate can only be set if subsample_size > 0.")
     else:
         subsample = samples
         
-    # Fill in the utility matrix.
-    matrix = np.zeros([len(candidates), num_samples])
-    for i, candidate in enumerate(candidates):
-
-        # use a different subsample per candidate
+    if utility.supports_batching:
+        batched_candidates = np.repeat(candidates, num_samples, axis=0).tolist()
         if subsample_per_candidate:
-            subsample = [samples[idx] for idx in sample_indices[i]]
+            batched_samples = [samples[idx] for idx in sample_indices.flatten()]
+        else:
+            batched_samples = np.tile(subsample, num_candidates).tolist()
+        utilities = utility.sentence_scores(batched_candidates, batched_samples)
+        matrix = np.reshape(utilities, [num_candidates, num_samples])
+    else:
+        # Fill in the utility matrix.
+        matrix = np.zeros([num_candidates, num_samples])
+        for i, candidate in enumerate(candidates):
 
-        for j, sample in enumerate(subsample):
-            matrix[i, j] = utility(hyp=candidate, ref=sample)
+            # use a different subsample per candidate
+            if subsample_size and subsample_per_candidate:
+                subsample = [samples[idx] for idx in sample_indices[i]]
+
+            for j, sample in enumerate(subsample):
+                matrix[i, j] = utility(hyp=candidate, ref=sample)
 
     # Compute E[utility(candidate, .)]
     expectation = np.average(matrix, axis=1)

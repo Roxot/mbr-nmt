@@ -82,7 +82,7 @@ def writer_job(queue, filename, expected_utility_folder):
         if filename: fout.close()
 
 def run_mbr(S, C, start_idx, args, writer_queue):
-    utility = parse_utility(args.utility, lang=args.lang)
+    utility = parse_utility(args.utility, lang=args.lang, bleurt_checkpoint=args.bleurt_checkpoint)
 
     for sequence_idx, samples in enumerate(S):
         candidates = C[sequence_idx] if C else None
@@ -108,7 +108,7 @@ def create_parser(subparsers=None):
                         help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
                         help="Utility function to maximize.", choices=["unigram-precision", "beer", "meteor",
-                                                                       "bleu", "chrf", "chrf++"])
+                                                                       "bleu", "chrf", "chrf++", "bleurt"])
     parser.add_argument("--candidates", "-c", type=str,
                         help="File containing translation candidates, one per line preceded by the number of "
                              "candidates (e.g. NC=300), in order of input sequence. "
@@ -132,6 +132,8 @@ def create_parser(subparsers=None):
                         help="Use a different subsample for each candidate.")
     parser.add_argument("--seed", type=int, default=None, required=False,
                         help="An optional random seed.")
+    parser.add_argument("--bleurt-checkpoint", type=str, default=None, required=False,
+                        help="The BLEURT checkpoint to use.")
     parser.set_defaults(subsample_per_candidate=False)
     return parser
 
