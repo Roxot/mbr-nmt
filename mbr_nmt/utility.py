@@ -5,10 +5,11 @@ import warnings
 import sacrebleu
 import tempfile
 import re
+import numpy as np
 try:
-    import bleurt
+    from bleurt import score as bleurt_score
 except ImportError:
-    bleurt = None
+    bleurt_score = None
 
 import mbr_nmt
 
@@ -144,6 +145,20 @@ class BLEU:
         self._smooth_value = smooth_value
         self._use_effective_order = use_effective_order
 
+    def corpus_score(self, hyps, refs):
+        """
+        :param hyps: list of strings, system hypotheses.
+        :param refs: list of strings, single reference per input.
+        """
+        return sacrebleu.corpus_bleu(hyps, [refs]).score
+
+    def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
+        return self.sentence_score(hyp, ref)
+
     def __call__(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
@@ -161,7 +176,15 @@ class ChrF:
         self._beta = beta
         self._remove_whitespace = remove_whitespace
 
+
     def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
+        return self.sentence_score(hyp, ref)
+
+    def sentence_score(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
@@ -171,6 +194,11 @@ class ChrF:
                                        beta=self._beta, 
                                        remove_whitespace=self._remove_whitespace).score
 
+    def corpus_score(self, hyps, refs):
+        return sacrebleu.corpus_chrf(hyps, refs, order=self._order,
+                                     beta=self._beta,
+                                     remove_whitespace=self._remove_whitespace).score
+
 class ChrFPP:
 
     def __init__(self, nworder=2, ncorder=6, beta=2.):
@@ -178,7 +206,17 @@ class ChrFPP:
         self.ncorder = ncorder
         self.beta = beta
 
+    def corpus_score(self, hyps, refs):
+        return computeChrF(fpRef=refs, fpHyp=hyps, nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
+
     def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
+        return self.sentence_score(hyp, ref)
+
+    def sentence_score(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
@@ -399,7 +437,7 @@ class BLEURT:
     def __init__(self, checkpoint, batch_size=16):
         self.supports_batching = True
         self.batch_size = batch_size
-        self.scorer = bleurt.score.BleurtScorer(checkpoint)
+        self.scorer = bleurt_score.BleurtScorer(checkpoint)
 
     def sentence_scores(self, hyps, refs):
         """
@@ -408,7 +446,7 @@ class BLEURT:
         
         Returns a list of sentence-level scores.
         """
-        return scorer.score(refs, hyps, batch_size=batch_size) 
+        return self.scorer.score(references=refs, candidates=hyps, batch_size=self.batch_size) 
     
     def corpus_score(self, hyps, refs):
         """
