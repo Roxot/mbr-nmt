@@ -416,9 +416,6 @@ class METEOR(Utility):
         scores = self.proc.stdout.readline().decode("utf-8").rstrip()
         self.proc.stdin.write("EVAL ||| {}\n".format(scores).encode("utf-8"))
         self.proc.stdin.flush()
-        print("output:",self.proc.stdout.readline().strip())
-        print("hyp:", hyp)
-        print("ref:", ref)
         meteor = float(self.proc.stdout.readline().strip())
         self.lock.release()
         return meteor
