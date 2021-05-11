@@ -13,6 +13,7 @@ from mbr_nmt.mbr import mbr
 
 def translate(args):
     finfo = sys.stderr
+    finfo.write(f"{str(args)}\n")
 
     # Read and process input arguments.
     S = read_samples_file(args.samples, args.num_samples, add_eos=args.add_eos)
