@@ -20,7 +20,21 @@ from mbr_nmt.external.chrF import computeChrF
 
 def parse_utility(string, lang=None, bleurt_checkpoint=None):
     if string == "unigram-precision":
-        return NGramPrecision(1)
+        return NGramPrecision(1, tokenize=True)
+    if string == "unigram-precision-symmetric":
+        return NGramPrecisionSymmetricProd(1, tokenize=True)
+    elif string == "sum-1-to-4-ngram-precision-symmetric":
+        return SumNGramPrecisionSymmetricProd(4, tokenize=True)
+    elif string == "unigram-f1":
+        return NGramF(1, tokenize=True)
+    elif string == "sum-1-to-4-ngram-f1":
+        return SumNGramF(4, tokenize=True)
+    elif string == "skip-bigram-precision":
+        return SkipBigramPrecision(tokenize=True)
+    elif string == "skip-bigram-precision-symmetric":
+        return SkipBigramPrecisionSymmetricProd(tokenize=True)
+    elif string == "skip-bigram-f1":
+        return SkipBigramF(tokenize=True)
     elif string == "beer":
         return BEER()
     elif string == "meteor":
@@ -69,11 +83,49 @@ class Utility:
         """
         pass
 
+class SumNGramPrecisionSymmetricProd(Utility):
+ 
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utilities = []
+        for n_i in range(n):
+            self.utilities.append(NGramPrecisionSymmetricProd(n, tokenize=tokenize))
+
+    def __call__(self, hyp: str, ref: str):
+        val = 0.
+        for utility in self.utilities:
+            val += utility(hyp, ref)
+        return val
+        
+class SumNGramF(Utility):
+ 
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utilities = []
+        for n_i in range(n):
+            self.utilities.append(NGramF(n, tokenize=tokenize))
+
+    def __call__(self, hyp: str, ref: str):
+        val = 0.
+        for utility in self.utilities:
+            val += utility(hyp, ref)
+        return val
+
+class NGramPrecisionSymmetricProd(Utility):
+
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utility = NGramPrecision(n, tokenize=tokenize)
+
+    def __call__(self, hyp: str, ref: str):
+        return self.utility(hyp, ref) * self.utility(ref, hyp)
+
 class NGramPrecision(Utility):
 
-    def __init__(self, n):
+    def __init__(self, n, tokenize=False):
         Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
@@ -81,6 +133,9 @@ class NGramPrecision(Utility):
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
         matches = hyp_set.intersection(ref_set)
@@ -88,9 +143,10 @@ class NGramPrecision(Utility):
 
 class NGramRecall(Utility):
 
-    def __init__(self, n):
+    def __init__(self, n, tokenize=False):
         Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
@@ -98,6 +154,9 @@ class NGramRecall(Utility):
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
         matches = hyp_set.intersection(ref_set)
@@ -105,15 +164,19 @@ class NGramRecall(Utility):
 
 class NGramF(Utility):
 
-    def __init__(self, n):
+    def __init__(self, n, tokenize=False):
         Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
         """
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         assert isinstance(hyp, str) and isinstance(ref, str)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
@@ -124,6 +187,10 @@ class NGramF(Utility):
         return 0. if (p + r) == 0. else 2. * p * r / (p + r)
 
 class SkipBigramPrecision(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -131,13 +198,30 @@ class SkipBigramPrecision(Utility):
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(combinations(hyp.split(' '), 2))
         ref_set = set(combinations(ref.split(' '), 2))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(hyp_set) if hyp_set else 0.0
 
+class SkipBigramPrecisionSymmetricProd(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
+        self.utility = SkipBigramPrecision(tokenize=tokenize)
+    
+    def __call__(self, hyp: str, ref: str):
+        return self.utility(hyp, ref) * self.utility(ref, hyp)
+
     
 class SkipBigramRecall(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -145,12 +229,19 @@ class SkipBigramRecall(Utility):
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(combinations(hyp.split(' '), 2))
         ref_set = set(combinations(ref.split(' '), 2))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(ref_set) if ref_set else 0.0   
     
 class SkipBigramF(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -158,6 +249,9 @@ class SkipBigramF(Utility):
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(combinations(hyp.split(' '), 2))
         ref_set = set(combinations(ref.split(' '), 2))
         matches = hyp_set.intersection(ref_set)

@@ -13,6 +13,7 @@ from mbr_nmt.mbr import mbr
 
 def translate(args):
     finfo = sys.stderr
+    finfo.write(f"{str(args)}\n")
 
     # Read and process input arguments.
     S = read_samples_file(args.samples, args.num_samples, add_eos=args.add_eos)
@@ -107,8 +108,14 @@ def create_parser(subparsers=None):
     parser.add_argument("--num-samples", "-n", type=int, required=True,
                         help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
-                        help="Utility function to maximize.", choices=["unigram-precision", "beer", "meteor",
-                                                                       "bleu", "chrf", "chrf++", "bleurt"])
+                        help="Utility function to maximize.", choices=["beer", "meteor",
+                                                                       "bleu", "chrf", "chrf++", "bleurt",
+                                                                       "unigram-precision", "unigram-f1", 
+                                                                       "unigram-precision-symmetric",
+                                                                       "skip-bigram-precision", "skip-bigram-f1",
+                                                                       "skip-bigram-precision-symmetric",
+                                                                       "sum-1-to-4-ngram-precision-symmetric",
+                                                                       "sum-1-to-4-ngram-f1"])
     parser.add_argument("--candidates", "-c", type=str,
                         help="File containing translation candidates, one per line preceded by the number of "
                              "candidates (e.g. NC=300), in order of input sequence. "
