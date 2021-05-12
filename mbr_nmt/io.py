@@ -15,7 +15,7 @@ def read_samples_file(filename, num_samples, add_eos=False):
         samples.append(samples_i)
 
     if len(samples[-1]) != num_samples:
-        raise Exception("Invalid candidate file, did you specify the number of samples correctly?")
+        raise Exception("Invalid samples file, did you specify the number of samples correctly?")
 
     return samples
 
