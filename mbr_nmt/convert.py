@@ -19,20 +19,34 @@ def convert(args):
     elif args.input_format == "mbr-nmt":
         if len(args.input_files) > 1:
             raise exception("Multiple input files not supported for mbr-nmt format.")
-        convert_mbr_translations(args.input_files[0], args.output_file)
+        convert_mbr_translations(args.input_files[0], args.output_file, merge_subwords=args.merge_subwords,
+                                 detokenize=args.detokenize, detruecase=args.detruecase, lang=args.lang)
     else:
         raise Exception("Unknown input format: {}".format(args.input_format))
 
-def convert_mbr_translations(input_file, output_file):
+def convert_mbr_translations(input_file, output_file, merge_subwords=False, detruecase=False,
+                             detokenize=False, lang="en"):
     sent_ids = []
     translations = []
     
+    if detruecase:
+        detruecaser = MosesDetruecaser()
+    if detokenize:
+        detokenizer = MosesDetokenizer(lang)
+
     with open(input_file, "r") as fi:
         for line in fi:
             try:
                 sent_idx, translation, pred_idx = line.split(" ||| ")
                 sent_ids.append(int(sent_idx))
-                translations.append(translation.strip())
+                translation = translation.strip()
+                if merge_subwords:
+                    translation = merge(translation, style="fairseq")
+                if detruecase:
+                    translation = detruecaser.detruecase(translation, return_str=True)
+                if detokenize:
+                    translation = detokenizer.detokenize(translation.split(' '))
+                translations.append(translation)
             except:
                 raise Exception("Invalid file format, expects lines like 'sentence_id ||| translation'")
 
