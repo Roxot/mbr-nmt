@@ -35,7 +35,7 @@ def read_candidates_file(filename, add_eos=False):
             if re.match("^NC=[0-9]+", line):
                 if ncandidates_i != len(candidates_i):
                     raise Exception(f"Invalid candidate file, expected {ncandidates_i} "
-                                    f"candidates, found {len(candidates_I)}.")
+                                    f"candidates, found {len(candidates_i)}.")
                 candidates.append(candidates_i)
                 candidates_i = []
                 ncandidates_i = int(line.rstrip()[3:])
@@ -46,7 +46,7 @@ def read_candidates_file(filename, add_eos=False):
 
         if ncandidates_i != len(candidates_i):
             raise Exception(f"Invalid candidate file, expected {ncandidates_i} "
-                            f"candidates, found {len(candidates_I)}.")
+                            f"candidates, found {len(candidates_i)}.")
         candidates.append(candidates_i)
 
     return candidates
