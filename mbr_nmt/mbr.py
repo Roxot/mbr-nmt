@@ -5,7 +5,8 @@ def unique_samples(samples):
     _, uniq_ids = np.unique(samples, return_index=True)
     return [samples[idx] for idx in uniq_ids]
 
-def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=None, subsample_per_candidate=False):
+def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=None, subsample_per_candidate=False,
+        return_topk=False):
     """
     Maximizes the MBR objective for one sentence given a list of samples, utility function,
     and optionally a separate list of candidates.
@@ -17,6 +18,7 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     :param return_matrix: optional, boolean, if true this function additionally returns the utility matrix as a numpy.ndarray.
     :param subsample_size: optional, integer, if given a smaller uniformly sampled subsample is used to approximate
                            expectations for faster runtime.
+    :param return_topk: optional, integer, returns top-k predictions rather than best only.
     """
 
     # If no candidates are given, we assume the samples to be the candidates.
@@ -66,9 +68,14 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     # Compute E[utility(candidate, .)]
     expectation = np.average(matrix, axis=1)
 
-    # Pick the argmax as final translation.
-    prediction_idx = np.argmax(expectation)
-    prediction = candidates[prediction_idx]
+    if return_topk:
+        # Pick the top-k best translations according to expected utility.
+        prediction_idx = np.argsort(expectation)[::-1][:return_topk]
+        prediction = [candidates[pid] for pid in prediction_idx]
+    else:
+        # Pick the argmax as final translation.
+        prediction_idx = np.argmax(expectation)
+        prediction = candidates[prediction_idx]
 
     # TODO changed this, tests are broken now. (didn't return pred_idx before)
     if return_matrix:

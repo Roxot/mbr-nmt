@@ -10,6 +10,7 @@ from pathlib import Path
 from mbr_nmt.io import read_samples_file, read_candidates_file
 from mbr_nmt.utility import parse_utility
 from mbr_nmt.mbr import mbr
+from mbr_nmt.c2f import c2f_mbr
 
 def translate(args):
     finfo = sys.stderr
@@ -84,17 +85,41 @@ def writer_job(queue, filename, expected_utility_folder):
 
 def run_mbr(S, C, start_idx, args, writer_queue):
     utility = parse_utility(args.utility, lang=args.lang, bleurt_checkpoint=args.bleurt_checkpoint)
+    if args.c2f:
+        if args.utility_2:
+            utility2 = parse_utility(args.utility_2, lang=args.lang, bleurt_checkpoint=args.bleurt_checkpoint)
+        else:
+            utility2 = utility
 
     for sequence_idx, samples in enumerate(S):
         candidates = C[sequence_idx] if C else None
-        pred_idx, pred, utility_matrix = mbr(samples, utility, 
-                                             candidates=candidates, 
-                                             return_matrix=True,
-                                             subsample_size=args.subsample_size,
-                                             subsample_per_candidate=args.subsample_per_candidate)
+
+        if args.c2f:
+            pred_idx, pred, utility_matrix = c2f_mbr(samples,
+                                                     utility1=utility,
+                                                     topk=args.top_k,
+                                                     utility2=utility2,
+                                                     candidates=candidates, 
+                                                     mc1=args.subsample_size, mc2=args.subsample_size_2,
+                                                     return_matrix=True,
+                                                     subsample_per_candidate=args.subsample_per_candidate)
+        else:
+            pred_idx, pred, utility_matrix = mbr(samples, utility, 
+                                                 candidates=candidates, 
+                                                 return_matrix=True,
+                                                 subsample_size=args.subsample_size,
+                                                 subsample_per_candidate=args.subsample_per_candidate)
         writer_queue.put((start_idx+sequence_idx, pred, pred_idx, utility_matrix))
 
 def create_parser(subparsers=None):
+    available_utilities=["beer", "meteor",
+                         "bleu", "chrf", "chrf++", "bleurt",
+                         "unigram-precision", "unigram-f1", 
+                         "unigram-precision-symmetric",
+                         "skip-bigram-precision", "skip-bigram-f1",
+                         "skip-bigram-precision-symmetric",
+                         "sum-1-to-4-ngram-precision-symmetric",
+                         "sum-1-to-4-ngram-f1"]
     description = "mbr-nmt translate: pick an optimal translation according to minimum Bayes risk decoding"
     if subparsers is None:
         parser = argparse.ArgumentParser(description=description,
@@ -108,23 +133,16 @@ def create_parser(subparsers=None):
     parser.add_argument("--num-samples", "-n", type=int, required=True,
                         help="Number of samples per input sequence.")
     parser.add_argument("--utility", "-u", type=str, required=True,
-                        help="Utility function to maximize.", choices=["beer", "meteor",
-                                                                       "bleu", "chrf", "chrf++", "bleurt",
-                                                                       "unigram-precision", "unigram-f1", 
-                                                                       "unigram-precision-symmetric",
-                                                                       "skip-bigram-precision", "skip-bigram-f1",
-                                                                       "skip-bigram-precision-symmetric",
-                                                                       "sum-1-to-4-ngram-precision-symmetric",
-                                                                       "sum-1-to-4-ngram-f1"])
+                        help="Utility function to maximize.", choices=available_utilities)
     parser.add_argument("--candidates", "-c", type=str,
                         help="File containing translation candidates, one per line preceded by the number of "
                              "candidates (e.g. NC=300), in order of input sequence. "
                              "If not given, assumed to be equal to --samples/-s.")
     parser.add_argument("--lang", "-l", type=str, default="en",
                         help="Language code used to inform METEOR.")
-    parser.add_argument("--subsample-size", type=int,
+    parser.add_argument("--subsample-size", "-mc1", type=int,
                         help="If set, a smaller uniformly sampled subsample is used to compute expectations "
-                             "for faster runtime.")
+                             "for faster runtime (or in the first round of coarse-to-fine MBR if --c2f is set).")
     parser.add_argument("--add-eos", action="store_true",
                         help="Add an EOS token to every sample and candidate. "
                              "This is useful for dealing with empty sequences.")
@@ -141,7 +159,22 @@ def create_parser(subparsers=None):
                         help="An optional random seed.")
     parser.add_argument("--bleurt-checkpoint", type=str, default=None, required=False,
                         help="The BLEURT checkpoint to use.")
-    parser.set_defaults(subsample_per_candidate=False)
+
+    # Coarse-to-fine MBR
+    parser.add_argument("--c2f", action="store_true",
+                        help="Run MBR in two rounds.")
+    parser.add_argument("--top-k", type=int,
+                        help="Keep only the top-k candidates from the first round of coarse-to-fine MBR as candidates "
+                             "in the second round of coarse-to-fine MBR.")
+    parser.add_argument("--subsample-size-2", "-mc2", type=int, required=False,
+                        help="If set, a smaller uniformly sampled subsample is used to comput expectations "
+                             "in the second round of coarse-to-fine MBR.")
+    parser.add_argument("--utility-2", "-u2", type=str, required=False, choices=available_utilities,
+                        help="Utility function to maximize in the second round of coarse-to-fine MBR. "
+                             "If not set, will use --utility/-u instead.")
+
+
+    parser.set_defaults(subsample_per_candidate=False, c2f=False)
     return parser
 
 if __name__ == "__main__":
