@@ -11,6 +11,12 @@ try:
 except ImportError:
     bleurt_score = None
 
+try:
+    import nepalitokenizer
+except ImportError:
+    nepalitokenizer = None 
+
+
 import mbr_nmt
 
 from itertools import combinations
@@ -381,7 +387,8 @@ class BEER(Utility):
         beer_home = os.environ["BEER_HOME"]
         self.proc = subprocess.Popen([beer_home + "/scripts/interactive", "-t", str(threads), "--model", model],
                             stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE)
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
         self.lock = threading.Lock()
         self.beer_home = beer_home
         self.threads = threads
@@ -426,11 +433,11 @@ class BEER(Utility):
             htmp.close()
             rtmp.close()
 
-        # Compute corpus-METEOR score.        
+        # Compute corpus-BEER score.        
         try:
             out = subprocess.run([self.beer_home + "/beer", "-t", str(self.threads),
                                   "-s", htmp.name, "-r", rtmp.name, "--model", self.model],
-                                 stdout=subprocess.PIPE)
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         finally:
             os.unlink(htmp.name)
             os.unlink(rtmp.name)
@@ -451,41 +458,50 @@ class BEER(Utility):
 
 class METEOR(Utility):
 
-    default_lang = "en"
+    default_lang = "other"
     fully_supported = ["en", "cz", "fr", "de", "es"]
     available_languages = ["en", "cz", "de", "es", "fr", "da", "fi", "hu", "it",
                            "nl", "no", "pt", "ro", "ru", "se", "tr", "other"]
 
-    def __init__(self, lang, tokenize=None, custom_args=None):
+    def __init__(self, lang, custom_args=None):
         """
         :param lang: one of METEOR.available_languages, or other.
-        :param tokenize: whether to use the built-in METEOR tokenizer. Only available for languages in METEOR.fully_supported.
         :param custom_args: additional custom args to be passed to METEOR.
         """
         Utility.__init__(self)
-        if tokenize is None: tokenize = lang in METEOR.fully_supported
         meteor_folder = os.path.join(mbr_nmt.__path__[0], 'metrics/meteor')
         if not os.path.exists(meteor_folder):
             raise Exception("METEOR not installed, expect meteor-1.5.jar and data in {}".format(meteor_folder))
         if lang not in self.available_languages:
             raise Exception(f"lang parameter not one of available languages: {lang} not in {self.available_languages}")
-        if tokenize and lang not in self.fully_supported:
-            raise Exception(f"built-in tokenization only available for fully supported languages: {lang} not in {self.fully_supported}")       
 
         jar_file = os.path.join(meteor_folder, "meteor-1.5.jar")
 
-        tok = ["-norm"] if tokenize else []
+        use_norm = lang in METEOR.fully_supported
+        tok = ["-norm"] if use_norm else ["-lower"]
+
         custom = [custom_args] if custom_args else []
         self.proc = subprocess.Popen(["java", "-Xmx2G", "-jar", jar_file, "-", "-",
                                        "-stdio", "-l", lang] + tok + custom,
                                      cwd=os.path.dirname(os.path.abspath(__file__)),
                                      stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE)
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
         self.lock = threading.Lock()
+
+        # If we can't use METEOR's built-in tokenizer, we need to tokenize ourselves.
+        if not use_norm:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                self.tokenizer = nepalitokenizer.NepaliTokenizer()
+                self.tokenize =  lambda s: ' '.join(self.tokenizer.tokenizer(s))
+            else:
+                self.tokenize = sacrebleu.tokenize_13a
 
         self.jar_file = jar_file
         self.lang = lang
-        self.tokenize = tokenize
+        self.use_norm = use_norm
         self.custom_args = custom_args
 
     def __call__(self, hyp: str, ref: str):
@@ -499,10 +515,13 @@ class METEOR(Utility):
         return self.sentence_score(hyp, ref)
 
     def sentence_score(self, hyp: str, ref: str):
-        """
+        """          
         :param hyp: string, system hypothesis, tokens separated by spaces.
         :param ref: string, single reference, tokens separated by spaces.
         """
+        if not self.use_norm:
+            hyp = self.tokenize(hyp)
+            ref=  self.tokenize(ref)
 
         self.lock.acquire()
         self.proc.stdin.write("SCORE ||| {} ||| {}\n".format(ref, hyp).encode("utf-8"))
@@ -523,22 +542,28 @@ class METEOR(Utility):
         # Write hypotheses and references to a temp file.
         htmp = tempfile.NamedTemporaryFile(mode="w", delete=False)
         rtmp = tempfile.NamedTemporaryFile(mode="w", delete=False)
+
         try:
-            for hyp in hyps: htmp.write(f"{hyp}\n")
-            for ref in refs: rtmp.write(f"{ref}\n")
+            if self.use_norm:
+                for hyp in hyps: htmp.write(f"{hyp}\n")
+                for ref in refs: rtmp.write(f"{ref}\n")
+            else:
+                for hyp in hyps: htmp.write(f"{self.tokenize(hyp)}\n")
+                for ref in refs: rtmp.write(f"{self.tokenize(ref)}\n")
         finally:
             htmp.close()
             rtmp.close()
 
         # Compute corpus-METEOR score.        
         try:
-            tok = ["-norm"] if self.tokenize else []
+            tok = ["-norm"] if self.use_norm else ["-lower"]
             custom = [self.custom_args] if self.custom_args else []
             out = subprocess.run(["java", "-Xmx2G", "-jar", self.jar_file, htmp.name, rtmp.name,
                                          "-l", self.lang, "-q"] + tok + custom,
                                          cwd=os.path.dirname(os.path.abspath(__file__)),
                                          stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE)
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
         finally:
             os.unlink(htmp.name)
             os.unlink(rtmp.name)
