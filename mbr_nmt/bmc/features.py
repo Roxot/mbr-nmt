@@ -14,6 +14,10 @@ def compute_utility_features(inputs, pivots, utility, template='r'):
     features = []
     # work around to avoid empty strings (which seem to break some utilities)
 
+    if utility.requires_tokenization:
+        inputs = [utility.tokenizer(s) for s in inputs]
+        pivots = [utility.tokenizer(s) for s in pivots]
+
     # Note: depending on the utility we might be able to optimise this (e.g., unigram precision)
     
     # Compute features \phi: 

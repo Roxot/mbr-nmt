@@ -40,7 +40,7 @@ def parse_utility(string, lang=None, bleurt_checkpoint=None):
     elif string == "skip-bigram-precision-symmetric":
         return SkipBigramPrecisionSymmetricProd(tokenize=True)
     elif string == "skip-bigram-f1":
-        return SkipBigramF(tokenize=True)
+        return SkipBigramF(tokenize=False, lang=lang) # TODO
     elif string == "beer":
         return BEER()
     elif string == "meteor":
@@ -245,21 +245,34 @@ class SkipBigramRecall(Utility):
     
 class SkipBigramF(Utility):
 
-    def __init__(self, tokenize=False):
+    def __init__(self, lang, tokenize=False):
         Utility.__init__(self)
         self.tokenize = tokenize
+        self.requires_tokenization = True
+
+        if lang == "ne":
+            # Nepali tokenizer special case
+            if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+            tok = nepalitokenizer.NepaliTokenizer()
+            tokenize =  lambda s: ' '.join(tok.tokenizer(s))
+        else:
+            tokenize = sacrebleu.tokenize_13a
+
+        self.tokenizer = lambda s: set(combinations(tokenize(s).split(' '), 2))
     
     def __call__(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
         """
-        assert isinstance(hyp, str) and isinstance(ref, str)
-        if self.tokenize:
-            hyp = sacrebleu.tokenize_13a(hyp)
-            ref = sacrebleu.tokenize_13a(ref)
-        hyp_set = set(combinations(hyp.split(' '), 2))
-        ref_set = set(combinations(ref.split(' '), 2))
+        # assert isinstance(hyp, str) and isinstance(ref, str)
+        # if self.tokenize:
+        #     hyp = sacrebleu.tokenize_13a(hyp)
+        #     ref = sacrebleu.tokenize_13a(ref)
+        # hyp_set = set(combinations(hyp.split(' '), 2))
+        # ref_set = set(combinations(ref.split(' '), 2)) # TODO
+        hyp_set = hyp
+        ref_set = ref
         matches = hyp_set.intersection(ref_set)
         n = len(matches)
         p = n / len(hyp_set) if hyp_set else 0.0
