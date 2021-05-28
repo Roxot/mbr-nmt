@@ -12,7 +12,7 @@ setup(
         "numpy",
         "tqdm",
         "nltk",
-        "sacrebleu",
+        "sacrebleu==1.4.4",
         "sacremoses"
     ],
     entry_points={

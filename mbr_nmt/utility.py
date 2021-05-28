@@ -355,7 +355,11 @@ class ChrFPP(Utility):
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
         if len(hyp) == 0 or len(ref) == 0: return 0.
-        return computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
+        try:
+            chrf = computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
+        except Exception as e:
+            chrf = 0.
+        return chrf
 
 class TER(Utility):
 
