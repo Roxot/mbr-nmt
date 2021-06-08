@@ -11,7 +11,7 @@ from mbr_nmt.processing import merge_subwords as merge
 
 def convert(args):
     if args.input_format == "fairseq":
-        convert_from_fairseq(args.input_files, args.output_file,
+        convert_from_fairseq(args.input_files, args.output_file, args.output_format,
                              merge_subwords=args.merge_subwords,
                              detruecase=args.detruecase,
                              detokenize=args.detokenize,
@@ -56,9 +56,11 @@ def convert_mbr_translations(input_file, output_file, merge_subwords=False, detr
             sent_idx = sent_ids[sort_idx]
             fo.write(f"{translations[sort_idx]}\n")
 
-def convert_from_fairseq(input_files, output_file, merge_subwords=False, 
+def convert_from_fairseq(input_files, output_file, output_format, merge_subwords=False, 
                          detruecase=False, detokenize=False, lang="en",
                          verbose=True):
+    if output_format not in ["samples", "candidates"]:
+        raise Exception(f"Invalid output format {output_format} for input format fairseq.")
     hyps = defaultdict(list)
     num_lines = sum(wc(input_file) for input_file in input_files)
 
@@ -91,25 +93,40 @@ def convert_from_fairseq(input_files, output_file, merge_subwords=False,
     finally:
         if verbose: pbar.close()
 
-    # Write in mbr-nmt format to the output file.
+    # Write in the output format format to the output file.
     if isinstance(output_file, str):
         fo = open(output_file, "w")
     else:
         fo = output_file
     if verbose: print("writing output to {}...".format(output_file))
-    num_hyps = None
-    try:
-        for idx in sorted(hyps.keys()):
-            if num_hyps is None:
-                num_hyps = len(hyps[idx])
-            elif num_hyps != len(hyps[idx]):
-                raise Exception("Unequal number of hypotheses per input sequence.")
 
-            for hyp in hyps[idx]:
-                fo.write("{}\n".format(hyp))
-    finally:
-        if isinstance(output_file, str): fo.close()
-    if verbose: print("found an equal {} hypotheses per input sequence".format(num_hyps))
+    if output_format == "samples":
+        num_hyps = None
+        try:
+            for idx in sorted(hyps.keys()):
+                if num_hyps is None:
+                    num_hyps = len(hyps[idx])
+                elif num_hyps != len(hyps[idx]):
+                    raise Exception("Unequal number of hypotheses per input sequence.")
+
+                for hyp in hyps[idx]:
+                    fo.write("{}\n".format(hyp))
+        finally:
+            if isinstance(output_file, str): fo.close()
+        if verbose: print("found an equal {} hypotheses per input sequence".format(num_hyps))
+    else: # candidates
+        avg_candidates = 0
+        Z = len(hyps)
+        try:
+            for idx in sorted(hyps.keys()):
+                num_hyps = len(hyps[idx])
+                fo.write(f"NC={num_hyps}\n")
+                for hyp in hyps[idx]:
+                    fo.write("{}\n".format(hyp))
+                avg_candidates += num_hyps / Z
+        finally:
+            if isinstance(output_file, str): fo.close()
+        if verbose: print("found an average of {:.1f} candidates per input sequence".format(avg_candidates))
 
 def create_parser(subparsers=None):
     description = "mbr-nmt convert: converts input files to the desired input format required by `mbr-nmt translate`"
@@ -126,6 +143,8 @@ def create_parser(subparsers=None):
                         help="The destination output file of hypotheses stored in mbr-nmt format.")
     parser.add_argument("--input-format", "-f", type=str, default="fairseq",
                         help="Input file format.", choices=["fairseq", "mbr-nmt"])
+    parser.add_argument("--output-format", type=str, default="translations",
+                        help="Output file format: samples, candidates or translations.", choices=["samples", "candidates", "translations"])
     parser.add_argument("--merge-subwords", action="store_true",
                         help="Merges subwords in the translations.")
     parser.add_argument("--detruecase", action="store_true",
