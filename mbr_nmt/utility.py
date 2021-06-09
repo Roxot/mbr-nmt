@@ -40,7 +40,7 @@ def parse_utility(string, lang=None, bleurt_checkpoint=None):
     elif string == "skip-bigram-precision-symmetric":
         return SkipBigramPrecisionSymmetricProd(tokenize=True)
     elif string == "skip-bigram-f1":
-        return SkipBigramF(tokenize=False, lang=lang) # TODO
+        return SkipBigramF(tokenize=False, lang=lang)
     elif string == "beer":
         return BEER()
     elif string == "meteor":
@@ -70,6 +70,10 @@ class Utility:
 
         # Whether this utility supports batching with self.sentence_scores(hyps, refs)
         self.supports_batching = False
+
+        # Whether this utility requires tokenization as pre-processing step (requires self.tokenizer to be set).
+        self.requires_tokenization = False
+        self.tokenizer = None
 
     def sentence_scores(self, hyps, refs):
         """
@@ -247,30 +251,25 @@ class SkipBigramF(Utility):
 
     def __init__(self, lang, tokenize=False):
         Utility.__init__(self)
-        self.tokenize = tokenize
         self.requires_tokenization = True
 
-        if lang == "ne":
-            # Nepali tokenizer special case
-            if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
-            tok = nepalitokenizer.NepaliTokenizer()
-            tokenize =  lambda s: ' '.join(tok.tokenizer(s))
-        else:
-            tokenize = sacrebleu.tokenize_13a
+        if tokenize:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                tok = nepalitokenizer.NepaliTokenizer()
+                tokenize =  lambda s: ' '.join(tok.tokenizer(s))
+            else:
+                tokenize = sacrebleu.tokenize_13a
+        else: tokenize = lambda x: x
 
         self.tokenizer = lambda s: set(combinations(tokenize(s).split(' '), 2))
     
-    def __call__(self, hyp: str, ref: str):
+    def __call__(self, hyp, ref):
         """
-        :param hyp: string, system hypothesis, tokens separated by spaces
-        :param ref: string, single reference, tokens separated by spaces
+        :param hyp: pre-processed hyp
+        :param ref: pre-processed ref
         """
-        # assert isinstance(hyp, str) and isinstance(ref, str)
-        # if self.tokenize:
-        #     hyp = sacrebleu.tokenize_13a(hyp)
-        #     ref = sacrebleu.tokenize_13a(ref)
-        # hyp_set = set(combinations(hyp.split(' '), 2))
-        # ref_set = set(combinations(ref.split(' '), 2)) # TODO
         hyp_set = hyp
         ref_set = ref
         matches = hyp_set.intersection(ref_set)

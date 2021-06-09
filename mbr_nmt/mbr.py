@@ -46,6 +46,8 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
         subsample = samples
         
     if utility.supports_batching:
+        if utility.requires_tokenization:
+            raise NotImplementedError()
         batched_candidates = np.repeat(candidates, num_samples, axis=0).tolist()
         if subsample_per_candidate:
             batched_samples = [samples[idx] for idx in sample_indices.flatten()]
@@ -56,13 +58,26 @@ def mbr(samples, utility, candidates=None, return_matrix=False, subsample_size=N
     else:
         # Fill in the utility matrix.
         matrix = np.zeros([num_candidates, num_samples])
-        for i, candidate in enumerate(candidates):
+
+        # Do some pre-processing if necessary for more efficient utility assessments.
+        if utility.requires_tokenization:
+            tok_candidates = [utility.tokenizer(c) for c in candidates] 
+            if subsample_size and subsample_per_candidate:
+                tok_samples = [utility.tokenizer(s) for s in samples]
+            else:
+                tok_subsample = [utility.tokenizer(s) for s in subsample]
+        else:
+            tok_candidates = candidates
+            tok_samples = samples
+            tok_subsample = subsample
+
+        for i, candidate in enumerate(tok_candidates):
 
             # use a different subsample per candidate
             if subsample_size and subsample_per_candidate:
-                subsample = [samples[idx] for idx in sample_indices[i]]
+                subsample = [tok_samples[idx] for idx in sample_indices[i]]
 
-            for j, sample in enumerate(subsample):
+            for j, sample in enumerate(tok_subsample):
                 matrix[i, j] = utility(hyp=candidate, ref=sample)
 
     # Compute E[utility(candidate, .)]
