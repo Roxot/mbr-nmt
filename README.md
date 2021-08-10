@@ -1,5 +1,5 @@
 # mbr-nmt
-Minimum Bayes-Risk Decoding for Neural Machine Translation
+Sampling-Based Minimum Bayes-Risk Decoding for Neural Machine Translation
 
 # Installation
 ```
