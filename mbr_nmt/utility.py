@@ -5,10 +5,17 @@ import warnings
 import sacrebleu
 import tempfile
 import re
+import numpy as np
 try:
-    import bleurt
+    from bleurt import score as bleurt_score
 except ImportError:
-    bleurt = None
+    bleurt_score = None
+
+try:
+    import nepalitokenizer
+except ImportError:
+    nepalitokenizer = None 
+
 
 import mbr_nmt
 
@@ -19,7 +26,21 @@ from mbr_nmt.external.chrF import computeChrF
 
 def parse_utility(string, lang=None, bleurt_checkpoint=None):
     if string == "unigram-precision":
-        return NGramPrecision(1)
+        return NGramPrecision(1, tokenize=True)
+    if string == "unigram-precision-symmetric":
+        return NGramPrecisionSymmetricProd(1, tokenize=True)
+    elif string == "sum-1-to-4-ngram-precision-symmetric":
+        return SumNGramPrecisionSymmetricProd(4, tokenize=True)
+    elif string == "unigram-f1":
+        return NGramF(1, tokenize=True)
+    elif string == "sum-1-to-4-ngram-f1":
+        return SumNGramF(4, tokenize=True)
+    elif string == "skip-bigram-precision":
+        return SkipBigramPrecision(tokenize=True)
+    elif string == "skip-bigram-precision-symmetric":
+        return SkipBigramPrecisionSymmetricProd(tokenize=True)
+    elif string == "skip-bigram-f1":
+        return SkipBigramF(tokenize=False, lang=lang)
     elif string == "beer":
         return BEER()
     elif string == "meteor":
@@ -37,15 +58,84 @@ def parse_utility(string, lang=None, bleurt_checkpoint=None):
     elif string == "ter":
         return TER()
     elif string == "bleurt":
-        if bleurt is None: raise Exception("BLEURT not installed.")
+        if bleurt_score is None: raise Exception("BLEURT not installed.")
+        if bleurt_checkpoint is None: raise Exception("Bleurt checkpoint not set.")
         return BLEURT(bleurt_checkpoint)
     else:
         raise Exception("Unknown utility: " + string)
 
-class NGramPrecision:
+class Utility:
 
-    def __init__(self, n):
+    def __init__(self):
+
+        # Whether this utility supports batching with self.sentence_scores(hyps, refs)
+        self.supports_batching = False
+
+        # Whether this utility requires tokenization as pre-processing step (requires self.tokenizer to be set).
+        self.requires_tokenization = False
+        self.tokenizer = None
+
+    def sentence_scores(self, hyps, refs):
+        """
+        :param hyps: list of strings, system hypotheses.
+        :param refs: list of strings, single reference per input.
+        
+        Returns a list of sentence-level scores. Required if self.supports_batching == True.
+        """
+        pass
+
+    def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+
+        returns the utility score of a single hypothesis, reference pair as float.
+        """
+        pass
+
+class SumNGramPrecisionSymmetricProd(Utility):
+ 
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utilities = []
+        for n_i in range(n):
+            self.utilities.append(NGramPrecisionSymmetricProd(n, tokenize=tokenize))
+
+    def __call__(self, hyp: str, ref: str):
+        val = 0.
+        for utility in self.utilities:
+            val += utility(hyp, ref)
+        return val
+        
+class SumNGramF(Utility):
+ 
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utilities = []
+        for n_i in range(n):
+            self.utilities.append(NGramF(n, tokenize=tokenize))
+
+    def __call__(self, hyp: str, ref: str):
+        val = 0.
+        for utility in self.utilities:
+            val += utility(hyp, ref)
+        return val
+
+class NGramPrecisionSymmetricProd(Utility):
+
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
+        self.utility = NGramPrecision(n, tokenize=tokenize)
+
+    def __call__(self, hyp: str, ref: str):
+        return self.utility(hyp, ref) * self.utility(ref, hyp)
+
+class NGramPrecision(Utility):
+
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
@@ -53,15 +143,20 @@ class NGramPrecision:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(hyp_set) if hyp_set else 0.
 
-class NGramRecall:
+class NGramRecall(Utility):
 
-    def __init__(self, n):
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
@@ -69,21 +164,29 @@ class NGramRecall:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(ref_set) if ref_set else 0.
 
-class NGramF:
+class NGramF(Utility):
 
-    def __init__(self, n):
+    def __init__(self, n, tokenize=False):
+        Utility.__init__(self)
         self.n = n
+        self.tokenize = tokenize
 
     def __call__(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
         """
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         assert isinstance(hyp, str) and isinstance(ref, str)
         hyp_set = set(ngrams(hyp.split(' '), self.n))
         ref_set = set(ngrams(ref.split(' '), self.n))
@@ -93,7 +196,11 @@ class NGramF:
         r = n / len(ref_set) if len(ref_set) else 0.
         return 0. if (p + r) == 0. else 2. * p * r / (p + r)
 
-class SkipBigramPrecision:
+class SkipBigramPrecision(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -101,13 +208,30 @@ class SkipBigramPrecision:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(combinations(hyp.split(' '), 2))
         ref_set = set(combinations(ref.split(' '), 2))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(hyp_set) if hyp_set else 0.0
 
+class SkipBigramPrecisionSymmetricProd(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
+        self.utility = SkipBigramPrecision(tokenize=tokenize)
     
-class SkipBigramRecall:
+    def __call__(self, hyp: str, ref: str):
+        return self.utility(hyp, ref) * self.utility(ref, hyp)
+
+    
+class SkipBigramRecall(Utility):
+
+    def __init__(self, tokenize=False):
+        Utility.__init__(self)
+        self.tokenize = tokenize
     
     def __call__(self, hyp: str, ref: str):
         """
@@ -115,21 +239,39 @@ class SkipBigramRecall:
         :param ref: string, single reference, tokens separated by spaces
         """
         assert isinstance(hyp, str) and isinstance(ref, str)
+        if self.tokenize:
+            hyp = sacrebleu.tokenize_13a(hyp)
+            ref = sacrebleu.tokenize_13a(ref)
         hyp_set = set(combinations(hyp.split(' '), 2))
         ref_set = set(combinations(ref.split(' '), 2))
         matches = hyp_set.intersection(ref_set)
         return len(matches) / len(ref_set) if ref_set else 0.0   
     
-class SkipBigramF:
+class SkipBigramF(Utility):
+
+    def __init__(self, lang, tokenize=False):
+        Utility.__init__(self)
+        self.requires_tokenization = True
+
+        if tokenize:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                tok = nepalitokenizer.NepaliTokenizer()
+                tokenize =  lambda s: ' '.join(tok.tokenizer(s))
+            else:
+                tokenize = sacrebleu.tokenize_13a
+        else: tokenize = lambda x: x
+
+        self.tokenizer = lambda s: set(combinations(tokenize(s).split(' '), 2))
     
-    def __call__(self, hyp: str, ref: str):
+    def __call__(self, hyp, ref):
         """
-        :param hyp: string, system hypothesis, tokens separated by spaces
-        :param ref: string, single reference, tokens separated by spaces
+        :param hyp: pre-processed hyp
+        :param ref: pre-processed ref
         """
-        assert isinstance(hyp, str) and isinstance(ref, str)
-        hyp_set = set(combinations(hyp.split(' '), 2))
-        ref_set = set(combinations(ref.split(' '), 2))
+        hyp_set = hyp
+        ref_set = ref
         matches = hyp_set.intersection(ref_set)
         n = len(matches)
         p = n / len(hyp_set) if hyp_set else 0.0
@@ -137,12 +279,27 @@ class SkipBigramF:
         return 0.0 if (p + r) == 0. else 2. * p * r / (p + r)
 
 
-class BLEU:
+class BLEU(Utility):
 
     def __init__(self, smooth_method='floor', smooth_value=None, use_effective_order=True):
+        Utility.__init__(self)
         self._smooth_method = smooth_method
         self._smooth_value = smooth_value
         self._use_effective_order = use_effective_order
+
+    def corpus_score(self, hyps, refs):
+        """
+        :param hyps: list of strings, system hypotheses.
+        :param refs: list of strings, single reference per input.
+        """
+        return sacrebleu.corpus_bleu(hyps, [refs]).score
+
+    def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
+        return self.sentence_score(hyp, ref)
 
     def __call__(self, hyp: str, ref: str):
         """
@@ -154,14 +311,23 @@ class BLEU:
                                        smooth_value=self._smooth_value, 
                                        use_effective_order=self._use_effective_order).score
 
-class ChrF:
+class ChrF(Utility):
 
     def __init__(self, order=6, beta=2, remove_whitespace=True):
+        Utility.__init__(self)
         self._order = order
         self._beta = beta
         self._remove_whitespace = remove_whitespace
 
+
     def __call__(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
+        return self.sentence_score(hyp, ref)
+
+    def sentence_score(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
@@ -171,25 +337,46 @@ class ChrF:
                                        beta=self._beta, 
                                        remove_whitespace=self._remove_whitespace).score
 
-class ChrFPP:
+    def corpus_score(self, hyps, refs):
+        return sacrebleu.corpus_chrf(hyps, refs, order=self._order,
+                                     beta=self._beta,
+                                     remove_whitespace=self._remove_whitespace).score
+
+class ChrFPP(Utility):
 
     def __init__(self, nworder=2, ncorder=6, beta=2.):
+        Utility.__init__(self)
         self.nworder = nworder
         self.ncorder = ncorder
         self.beta = beta
+
+    def corpus_score(self, hyps, refs):
+        return computeChrF(fpRef=refs, fpHyp=hyps, nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
 
     def __call__(self, hyp: str, ref: str):
         """
         :param hyp: string, system hypothesis, tokens separated by spaces
         :param ref: string, single reference, tokens separated by spaces
         """
+        return self.sentence_score(hyp, ref)
+
+    def sentence_score(self, hyp: str, ref: str):
+        """
+        :param hyp: string, system hypothesis, tokens separated by spaces
+        :param ref: string, single reference, tokens separated by spaces
+        """
         assert isinstance(hyp, str) and isinstance(ref, str)
         if len(hyp) == 0 or len(ref) == 0: return 0.
-        return computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
+        try:
+            chrf = computeChrF(fpRef=[ref], fpHyp=[hyp], nworder=self.nworder, ncorder=self.ncorder, beta=self.beta)[1]
+        except Exception as e:
+            chrf = 0.
+        return chrf
 
-class TER:
+class TER(Utility):
 
     def __init__(self, normalized=False, no_punct=False, asian_support=False, case_sensitive=False):
+        Utility.__init__(self)
         self._normalized = normalized
         self._no_punct = no_punct
         self._asian_support = asian_support
@@ -206,16 +393,18 @@ class TER:
                case_sensitive=self._case_sensitive).score
         return -loss
 
-class BEER:
+class BEER(Utility):
 
     def __init__(self, threads=4, model="default"):
+        Utility.__init__(self)
         if "BEER_HOME" not in os.environ:
             raise Exception("For use of BEER as utility, make sure BEER is installed and "
                             "$BEER_HOME is set.")
         beer_home = os.environ["BEER_HOME"]
         self.proc = subprocess.Popen([beer_home + "/scripts/interactive", "-t", str(threads), "--model", model],
                             stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE)
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
         self.lock = threading.Lock()
         self.beer_home = beer_home
         self.threads = threads
@@ -260,11 +449,11 @@ class BEER:
             htmp.close()
             rtmp.close()
 
-        # Compute corpus-METEOR score.        
+        # Compute corpus-BEER score.        
         try:
             out = subprocess.run([self.beer_home + "/beer", "-t", str(self.threads),
                                   "-s", htmp.name, "-r", rtmp.name, "--model", self.model],
-                                 stdout=subprocess.PIPE)
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         finally:
             os.unlink(htmp.name)
             os.unlink(rtmp.name)
@@ -283,42 +472,52 @@ class BEER:
             self.proc.wait()
             self.lock.release()
 
-class METEOR:
+class METEOR(Utility):
 
-    default_lang = "en"
+    default_lang = "other"
     fully_supported = ["en", "cz", "fr", "de", "es"]
     available_languages = ["en", "cz", "de", "es", "fr", "da", "fi", "hu", "it",
                            "nl", "no", "pt", "ro", "ru", "se", "tr", "other"]
 
-    def __init__(self, lang, tokenize=None, custom_args=None):
+    def __init__(self, lang, custom_args=None):
         """
         :param lang: one of METEOR.available_languages, or other.
-        :param tokenize: whether to use the built-in METEOR tokenizer. Only available for languages in METEOR.fully_supported.
         :param custom_args: additional custom args to be passed to METEOR.
         """
-        if tokenize is None: tokenize = lang in METEOR.fully_supported
+        Utility.__init__(self)
         meteor_folder = os.path.join(mbr_nmt.__path__[0], 'metrics/meteor')
         if not os.path.exists(meteor_folder):
             raise Exception("METEOR not installed, expect meteor-1.5.jar and data in {}".format(meteor_folder))
         if lang not in self.available_languages:
             raise Exception(f"lang parameter not one of available languages: {lang} not in {self.available_languages}")
-        if tokenize and lang not in self.fully_supported:
-            raise Exception(f"built-in tokenization only available for fully supported languages: {lang} not in {self.fully_supported}")       
 
         jar_file = os.path.join(meteor_folder, "meteor-1.5.jar")
 
-        tok = ["-norm"] if tokenize else []
+        use_norm = lang in METEOR.fully_supported
+        tok = ["-norm"] if use_norm else ["-lower"]
+
         custom = [custom_args] if custom_args else []
         self.proc = subprocess.Popen(["java", "-Xmx2G", "-jar", jar_file, "-", "-",
                                        "-stdio", "-l", lang] + tok + custom,
                                      cwd=os.path.dirname(os.path.abspath(__file__)),
                                      stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE)
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
         self.lock = threading.Lock()
+
+        # If we can't use METEOR's built-in tokenizer, we need to tokenize ourselves.
+        if not use_norm:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                self.tokenizer = nepalitokenizer.NepaliTokenizer()
+                self.tokenize =  lambda s: ' '.join(self.tokenizer.tokenizer(s))
+            else:
+                self.tokenize = sacrebleu.tokenize_13a
 
         self.jar_file = jar_file
         self.lang = lang
-        self.tokenize = tokenize
+        self.use_norm = use_norm
         self.custom_args = custom_args
 
     def __call__(self, hyp: str, ref: str):
@@ -332,11 +531,14 @@ class METEOR:
         return self.sentence_score(hyp, ref)
 
     def sentence_score(self, hyp: str, ref: str):
-        """
+        """          
         :param hyp: string, system hypothesis, tokens separated by spaces.
         :param ref: string, single reference, tokens separated by spaces.
         """
-        
+        if not self.use_norm:
+            hyp = self.tokenize(hyp)
+            ref=  self.tokenize(ref)
+
         self.lock.acquire()
         self.proc.stdin.write("SCORE ||| {} ||| {}\n".format(ref, hyp).encode("utf-8"))
         self.proc.stdin.flush()
@@ -356,22 +558,28 @@ class METEOR:
         # Write hypotheses and references to a temp file.
         htmp = tempfile.NamedTemporaryFile(mode="w", delete=False)
         rtmp = tempfile.NamedTemporaryFile(mode="w", delete=False)
+
         try:
-            for hyp in hyps: htmp.write(f"{hyp}\n")
-            for ref in refs: rtmp.write(f"{ref}\n")
+            if self.use_norm:
+                for hyp in hyps: htmp.write(f"{hyp}\n")
+                for ref in refs: rtmp.write(f"{ref}\n")
+            else:
+                for hyp in hyps: htmp.write(f"{self.tokenize(hyp)}\n")
+                for ref in refs: rtmp.write(f"{self.tokenize(ref)}\n")
         finally:
             htmp.close()
             rtmp.close()
 
         # Compute corpus-METEOR score.        
         try:
-            tok = ["-norm"] if self.tokenize else []
+            tok = ["-norm"] if self.use_norm else ["-lower"]
             custom = [self.custom_args] if self.custom_args else []
             out = subprocess.run(["java", "-Xmx2G", "-jar", self.jar_file, htmp.name, rtmp.name,
                                          "-l", self.lang, "-q"] + tok + custom,
                                          cwd=os.path.dirname(os.path.abspath(__file__)),
                                          stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE)
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
         finally:
             os.unlink(htmp.name)
             os.unlink(rtmp.name)
@@ -391,12 +599,13 @@ class METEOR:
     def is_available_lang(lang):
         return lang in METEOR.available_languages
 
-class BLEURT:
+class BLEURT(Utility):
     
     def __init__(self, checkpoint, batch_size=16):
+        Utility.__init__(self)
         self.supports_batching = True
         self.batch_size = batch_size
-        self.scorer = bleurt.score.BleurtScorer(checkpoint)
+        self.scorer = bleurt_score.BleurtScorer(checkpoint)
 
     def sentence_scores(self, hyps, refs):
         """
@@ -405,7 +614,7 @@ class BLEURT:
         
         Returns a list of sentence-level scores.
         """
-        return scorer.score(refs, hyps, batch_size=batch_size) 
+        return self.scorer.score(references=refs, candidates=hyps, batch_size=self.batch_size) 
     
     def corpus_score(self, hyps, refs):
         """
