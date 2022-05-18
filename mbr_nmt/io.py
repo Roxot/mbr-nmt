@@ -2,9 +2,9 @@ import re
 
 EOS_TOKEN = "</s>"
 
-def read_samples_file(filename, num_samples, add_eos=False):
+def read_samples_file(filename, num_samples, add_eos=False, encoding=None):
     samples = []
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding=encoding) as f:
         for line_id, line in enumerate(f.readlines()):
             if line_id % num_samples == 0:
                 if line_id != 0: samples.append(samples_i)
@@ -19,10 +19,10 @@ def read_samples_file(filename, num_samples, add_eos=False):
 
     return samples
 
-def read_candidates_file(filename, add_eos=False):
+def read_candidates_file(filename, add_eos=False, encoding=None):
     candidates = []
     candidates_i = None
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding=encoding) as f:
         for line_id, line in enumerate(f.readlines()):
             if candidates_i is None:
                 try:
@@ -51,8 +51,8 @@ def read_candidates_file(filename, add_eos=False):
 
     return candidates
 
-def wc(filename):
+def wc(filename, encoding=None):
     count = 0
-    with open(filename, "r") as f:
+    with open(filename, "r", encoding=encoding) as f:
         count += sum(1 for line in f)
     return count
