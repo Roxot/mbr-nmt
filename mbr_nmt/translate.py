@@ -9,9 +9,6 @@ from pathlib import Path
 
 from mbr_nmt.io import read_samples_file, read_candidates_file
 from mbr_nmt.utility import parse_utility
-from mbr_nmt.mbr import mbr
-from mbr_nmt.c2f import c2f_mbr
-from mbr_nmt.bayesmc import bayes_mc_mbr
 
 def translate(args):
     finfo = sys.stderr
@@ -20,8 +17,8 @@ def translate(args):
     if args.bmc and args.kernel_utility is None: raise Exception("Kernel utility not set.")
 
     # Read and process input arguments.
-    S = read_samples_file(args.samples, args.num_samples, add_eos=args.add_eos)
-    C = read_candidates_file(args.candidates, add_eos=args.add_eos) if args.candidates else None
+    S = read_samples_file(args.samples, args.num_samples, add_eos=args.add_eos, encoding=args.encoding)
+    C = read_candidates_file(args.candidates, add_eos=args.add_eos, encoding=args.encoding) if args.candidates else None
     if C is not None and len(C) != len(S):
         raise Exception("Different dataset size for candidates and samples.")
 
@@ -45,7 +42,7 @@ def translate(args):
         raise Exception("Using more threads than translation candidates.")
 
     writer_queue = multiprocessing.Queue()
-    writer_process = multiprocessing.Process(target=writer_job, args=(writer_queue, args.output_file, exp_utility_folder))
+    writer_process = multiprocessing.Process(target=writer_job, args=(writer_queue, args.output_file, exp_utility_folder, args.encoding))
     writer_process.start()
 
     # Split up the input data into multiple threads.
@@ -71,8 +68,8 @@ def translate(args):
 
     finfo.write(f"Decoding took {time.time() - start_time:.0f}s\n")
 
-def writer_job(queue, filename, expected_utility_folder):
-    if filename: fout = open(filename, "w")
+def writer_job(queue, filename, expected_utility_folder, encoding=None):
+    if filename: fout = open(filename, "w", encoding=encoding)
     else: fout = sys.stdout
     
     try:
@@ -103,6 +100,7 @@ def run_mbr(S, C, start_idx, args, writer_queue):
             kernel_utility = None
 
         if args.c2f:
+            from mbr_nmt.c2f import c2f_mbr
             pred_idx, pred, utility_matrix = c2f_mbr(samples,
                                                      utility1=utility,
                                                      topk=args.top_k,
@@ -114,12 +112,14 @@ def run_mbr(S, C, start_idx, args, writer_queue):
                                                      bmc=args.bmc, kernel_utility=kernel_utility)
             exp_utility = utility_matrix.mean(axis=1)
         elif args.bmc:
+            from mbr_nmt.bayesmc import bayes_mc_mbr
             pred_idx, pred, exp_utility = bayes_mc_mbr(samples, kernel_utility, utility, 
                                                        candidates=candidates,
                                                        subsample_size=args.subsample_size,
                                                        subsample_per_candidate=args.subsample_per_candidate,
                                                        return_gp_mean=True)
         else:
+            from mbr_nmt.mbr import mbr
             pred_idx, pred, utility_matrix = mbr(samples, utility, 
                                                  candidates=candidates, 
                                                  return_matrix=True,
@@ -157,6 +157,8 @@ def create_parser(subparsers=None):
                              "If not given, assumed to be equal to --samples/-s.")
     parser.add_argument("--lang", "-l", type=str, default="en",
                         help="Language code used to inform METEOR.")
+    parser.add_argument("--encoding", type=str,
+                        help="File encoding for io operations.")
     parser.add_argument("--subsample-size", "-mc1", type=int,
                         help="If set, a smaller uniformly sampled subsample is used to compute expectations "
                              "for faster runtime (or in the coarse step of coarse-to-fine MBR if --c2f is set).")

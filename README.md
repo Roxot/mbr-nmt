@@ -1,5 +1,5 @@
 # mbr-nmt
-Minimum Bayes-Risk Decoding for Neural Machine Translation
+Sampling-Based Minimum Bayes-Risk Decoding for Neural Machine Translation
 
 # Installation
 ```
@@ -63,4 +63,4 @@ NC=3
 See `mbr-nmt translate --help` for a full list of utilities currently supported. Some utilities require to be installed first.
 
 ## BEER installation
-Clone the BEER repository https://github.com/stanojevic/beer and set the `$BEER_HOME` environment variable to the root of the repository. Make sure that `$BEER_HOME` is visible to `mbr-nmt translate`
+Follow the installation instructions at https://github.com/stanojevic/beer and set the `$BEER_HOME` environment variable. Make sure that `$BEER_HOME` is visible to `mbr-nmt translate`

@@ -15,17 +15,18 @@ def convert(args):
                              merge_subwords=args.merge_subwords,
                              detruecase=args.detruecase,
                              detokenize=args.detokenize,
-                             lang=args.lang)
+                             lang=args.lang,
+                             encoding=args.encoding)
     elif args.input_format == "mbr-nmt":
         if len(args.input_files) > 1:
             raise exception("Multiple input files not supported for mbr-nmt format.")
         convert_mbr_translations(args.input_files[0], args.output_file, merge_subwords=args.merge_subwords,
-                                 detokenize=args.detokenize, detruecase=args.detruecase, lang=args.lang)
+                                 detokenize=args.detokenize, detruecase=args.detruecase, lang=args.lang, encoding=args.encoding)
     else:
         raise Exception("Unknown input format: {}".format(args.input_format))
 
 def convert_mbr_translations(input_file, output_file, merge_subwords=False, detruecase=False,
-                             detokenize=False, lang="en"):
+                             detokenize=False, lang="en", encoding=None):
     sent_ids = []
     translations = []
     
@@ -34,7 +35,7 @@ def convert_mbr_translations(input_file, output_file, merge_subwords=False, detr
     if detokenize:
         detokenizer = MosesDetokenizer(lang)
 
-    with open(input_file, "r") as fi:
+    with open(input_file, "r", encoding=encoding) as fi:
         for line in fi:
             try:
                 sent_idx, translation, pred_idx = line.split(" ||| ")
@@ -51,14 +52,14 @@ def convert_mbr_translations(input_file, output_file, merge_subwords=False, detr
                 raise Exception("Invalid file format, expects lines like 'sentence_id ||| translation'")
 
     sort_ids = np.argsort(sent_ids)
-    with open(output_file, "w") as fo:
+    with open(output_file, "w", encoding=encoding) as fo:
         for sort_idx in sort_ids:
             sent_idx = sent_ids[sort_idx]
             fo.write(f"{translations[sort_idx]}\n")
 
 def convert_from_fairseq(input_files, output_file, output_format, merge_subwords=False, 
                          detruecase=False, detokenize=False, lang="en",
-                         verbose=True):
+                         verbose=True, encoding=None):
     if output_format not in ["samples", "candidates"]:
         raise Exception(f"Invalid output format {output_format} for input format fairseq.")
     hyps = defaultdict(list)
@@ -74,7 +75,7 @@ def convert_from_fairseq(input_files, output_file, output_format, merge_subwords
     if verbose: pbar = tqdm(total=num_lines)
     try:
         for input_file in input_files:
-            with open(input_file, "r") as fi:
+            with open(input_file, "r", encoding=encoding) as fi:
                 for line in fi:
                     if verbose: pbar.update(1)
                     if line[:2] != "H-": continue
@@ -95,7 +96,7 @@ def convert_from_fairseq(input_files, output_file, output_format, merge_subwords
 
     # Write in the output format format to the output file.
     if isinstance(output_file, str):
-        fo = open(output_file, "w")
+        fo = open(output_file, "w", encoding=encoding)
     else:
         fo = output_file
     if verbose: print("writing output to {}...".format(output_file))
@@ -153,6 +154,8 @@ def create_parser(subparsers=None):
                         help="Detokenize translations using the Moses detokenizer.")
     parser.add_argument("--lang", type=str, default="en",
                         help="Language used for the Moses detokenizer.")
+    parser.add_argument("--encoding", type=str,
+                        help="File encoding for io operations.")
 
     parser.set_defaults(merge_subwords=False, detruecase=False, detokenize=False)
 
