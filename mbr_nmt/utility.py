@@ -9,7 +9,7 @@ import numpy as np
 try:
     from bleurt import score as bleurt_score
 except ImportError:
-    bleurt_score = None
+    bleurt_score = None 
 
 try:
     import nepalitokenizer
@@ -24,21 +24,25 @@ from nltk.util import ngrams
 
 from mbr_nmt.external.chrF import computeChrF
 
-def parse_utility(string, lang=None, bleurt_checkpoint=None):
+def parse_utility(string, lang=None, bleurt_checkpoint=None, tokenize=True):
     if string == "unigram-precision":
-        return NGramPrecision(1, tokenize=True)
+        return NGramPrecision(1, tokenize=tokenize)
     if string == "unigram-precision-symmetric":
-        return NGramPrecisionSymmetricProd(1, tokenize=True)
+        return NGramPrecisionSymmetricProd(1, tokenize=tokenize)
+    if string == "bigram-precision":
+        return NGramPrecision(2, tokenize=tokenize)
     elif string == "sum-1-to-4-ngram-precision-symmetric":
-        return SumNGramPrecisionSymmetricProd(4, tokenize=True)
+        return SumNGramPrecisionSymmetricProd(4, tokenize=tokenize)
     elif string == "unigram-f1":
-        return NGramF(1, tokenize=True)
+        return NGramF(1, tokenize=(lang=="ne"))
+    elif string == "bigram-f1":
+        return NGramF(2, tokenize=(lang=="ne"))
     elif string == "sum-1-to-4-ngram-f1":
-        return SumNGramF(4, tokenize=True)
+        return SumNGramF(4, tokenize=tokenize)
     elif string == "skip-bigram-precision":
-        return SkipBigramPrecision(tokenize=True)
+        return SkipBigramPrecision(tokenize=tokenize)
     elif string == "skip-bigram-precision-symmetric":
-        return SkipBigramPrecisionSymmetricProd(tokenize=True)
+        return SkipBigramPrecisionSymmetricProd(tokenize=tokenize)
     elif string == "skip-bigram-f1":
         return SkipBigramF(tokenize=False, lang=lang)
     elif string == "beer":
@@ -132,24 +136,29 @@ class NGramPrecisionSymmetricProd(Utility):
 
 class NGramPrecision(Utility):
 
-    def __init__(self, n, tokenize=False):
+    def __init__(self, n, tokenize=False, lang="en"):
         Utility.__init__(self)
         self.n = n
-        self.tokenize = tokenize
+        self.requires_tokenization = True
 
-    def __call__(self, hyp: str, ref: str):
-        """
-        :param hyp: string, system hypothesis, tokens separated by spaces
-        :param ref: string, single reference, tokens separated by spaces
-        """
-        assert isinstance(hyp, str) and isinstance(ref, str)
-        if self.tokenize:
-            hyp = sacrebleu.tokenize_13a(hyp)
-            ref = sacrebleu.tokenize_13a(ref)
-        hyp_set = set(ngrams(hyp.split(' '), self.n))
-        ref_set = set(ngrams(ref.split(' '), self.n))
-        matches = hyp_set.intersection(ref_set)
-        return len(matches) / len(hyp_set) if hyp_set else 0.
+        if tokenize:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                tok = nepalitokenizer.NepaliTokenizer()
+                tokenize =  lambda s: ' '.join(tok.tokenizer(s))
+            else:
+                tokenize = sacrebleu.tokenize_13a
+        else: tokenize = lambda x: x
+
+        self.tokenizer = lambda s: set(ngrams(tokenize(s).split(' '), self.n))
+
+    def __call__(self, hyp, ref):
+        matches = hyp.intersection(ref)
+        return len(matches) / len(hyp) if hyp else 0.
+
+    def __str__(self):
+        return f"{self.n}-GramPrecision"
 
 class NGramRecall(Utility):
 
@@ -174,26 +183,28 @@ class NGramRecall(Utility):
 
 class NGramF(Utility):
 
-    def __init__(self, n, tokenize=False):
+    def __init__(self, n, tokenize=False, lang="en"):
         Utility.__init__(self)
         self.n = n
-        self.tokenize = tokenize
+        self.requires_tokenization = True
 
-    def __call__(self, hyp: str, ref: str):
-        """
-        :param hyp: string, system hypothesis, tokens separated by spaces
-        :param ref: string, single reference, tokens separated by spaces
-        """
-        if self.tokenize:
-            hyp = sacrebleu.tokenize_13a(hyp)
-            ref = sacrebleu.tokenize_13a(ref)
-        assert isinstance(hyp, str) and isinstance(ref, str)
-        hyp_set = set(ngrams(hyp.split(' '), self.n))
-        ref_set = set(ngrams(ref.split(' '), self.n))
-        matches = hyp_set.intersection(ref_set)
+        if tokenize:
+            if lang == "ne":
+                # Nepali tokenizer special case
+                if nepalitokenizer is None: raise Exception("nepalitokenizer not installed.")
+                tok = nepalitokenizer.NepaliTokenizer()
+                tokenize =  lambda s: ' '.join(tok.tokenizer(s))
+            else:
+                tokenize = sacrebleu.tokenize_13a
+        else: tokenize = lambda x: x
+
+        self.tokenizer = lambda s: set(ngrams(tokenize(s).split(' '), self.n))
+
+    def __call__(self, hyp, ref):
+        matches = hyp.intersection(ref)
         n = len(matches) 
-        p = n / len(hyp_set) if len(hyp_set) else 0.
-        r = n / len(ref_set) if len(ref_set) else 0.
+        p = n / len(hyp) if len(hyp) else 0.
+        r = n / len(ref) if len(ref) else 0.
         return 0. if (p + r) == 0. else 2. * p * r / (p + r)
 
 class SkipBigramPrecision(Utility):
@@ -265,13 +276,11 @@ class SkipBigramF(Utility):
 
         self.tokenizer = lambda s: set(combinations(tokenize(s).split(' '), 2))
     
-    def __call__(self, hyp, ref):
+    def __call__(self, hyp_set, ref_set):
         """
-        :param hyp: pre-processed hyp
-        :param ref: pre-processed ref
+        :param hyp_set: pre-processed hyp
+        :param ref_set: pre-processed ref
         """
-        hyp_set = hyp
-        ref_set = ref
         matches = hyp_set.intersection(ref_set)
         n = len(matches)
         p = n / len(hyp_set) if hyp_set else 0.0
